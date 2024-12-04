@@ -1,4 +1,4 @@
-# An app which plays video in your console through C++, OpenCV, SDL2 and FFmpeg
+# An app which plays image, video and audio in your console through C++, OpenCV, SDL2 and FFmpeg
 
 ## Installation
 
@@ -13,18 +13,18 @@ brew tap hnrobert/cmd-video-player && brew install cmd-video-player
 <img width="697" alt="image" src="https://github.com/user-attachments/assets/75527a63-4e69-4a9a-a5a6-351450d97931">
 
 ```txt
-  ____ __  __ ____   __     ___     _            
- / ___|  \/  |  _ \  \ \   / (_) __| | ___  ___  
-| |   | |\/| | | | |  \ \ / /| |/ _` |/ _ \/ _ \ 
-| |___| |  | | |_| |   \ V / | | (_| |  __/ (_) |
- \____|_|  |_|____/     \_/  |_|\__,_|\___|\___/ 
-                                                 
+  ____ __  __ ____     __  __          _ _       
+ / ___|  \/  |  _ \   |  \/  | ___  __| (_) __ _ 
+| |   | |\/| | | | |  | |\/| |/ _ \/ _` | |/ _` |
+| |___| |  | | |_| |  | |  | |  __/ (_| | | (_| |
+ \____|_|  |_|____/   |_|  |_|\___|\__,_|_|\__,_|
+
  ____  _                       
 |  _ \| | __ _ _   _  ___ _ __ 
 | |_) | |/ _` | | | |/ _ \ '__|
 |  __/| | (_| | |_| |  __/ |        - by HNRobert
 |_|   |_|\__,_|\__, |\___|_|   
-               |___/     
+               |___/ 
 
 Usage:
   play -v /path/to/video [-ct st/dy] [-c s/l] [-chars "@%#*+=-:. "]
