@@ -1,6 +1,6 @@
 //
 //  video-player.hpp
-//  CMD-Video-Player
+//  CMD-Media-Player
 //
 //  Created by Robert He on 2024/9/2.
 //

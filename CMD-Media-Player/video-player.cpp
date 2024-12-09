@@ -1,6 +1,6 @@
 //
 //  video-player.cpp
-//  CMD-Video-Player
+//  CMD-Media-Player
 //
 //  Created by Robert He on 2024/9/2.
 //
@@ -8,7 +8,7 @@
 #include "basic-functions.hpp"
 #include "video-player.hpp"
 
-#define AUDIO_QUEUE_SIZE 1024 * 1024 // 1MB buffer
+#define AUDIO_QUEUE_SIZE (1024 * 1024) // 1MB buffer
 
 bool is_escape_key_pressed() {
 #ifdef _WIN32
@@ -42,7 +42,7 @@ void move_cursor_to_top_left(bool clear = false) {
 
 void add_empty_lines_for(std::string &combined_output, int count) {
     for (int i = 0; i < count; i++) {
-        combined_output += "\n\033[K"; // 换行并清除该行到行末的字符
+        combined_output += "\n\033[K"; // Return and clear the characters afterwords in this line
     }
 }
 
@@ -52,18 +52,18 @@ std::string image_to_ascii_dy_contrast(const cv::Mat &image,
     unsigned long asciiLength = strlen(asciiChars);
     std::string asciiImage;
 
-    // Step 1: 计算图像的最小和最大像素值
+    // Step 1: Find the maximum and the minimum depth of the pixels in the image
     double min_pixel_value, max_pixel_value;
     cv::minMaxLoc(image, &min_pixel_value, &max_pixel_value);
 
-    // Step 2: 遍历图像像素，并根据灰度范围缩放像素值
+    // Step 2: Loop for all the pixels and adjust them (scaling)
     for (int i = 0; i < image.rows; ++i) {
-        asciiImage += std::string(pre_space, ' '); // 添加前置空格
+        asciiImage += std::string(pre_space, ' '); // Add spaces beforehand
         for (int j = 0; j < image.cols; ++j) {
-            uchar pixel = image.at<uchar>(i, j);
-            // Step 3: 将像素值缩放到 0-255，并映射到 ASCII 字符集
-            uchar scaled_pixel = static_cast<uchar>(255.0 * (pixel - min_pixel_value) / (max_pixel_value - min_pixel_value));
-            char asciiChar = asciiChars[(scaled_pixel * asciiLength) / 256];
+            const uchar pixel = image.at<uchar>(i, j);
+            // Step 3: Scale the pixels within 0-255，and map them to ASCII character set
+            const auto scaled_pixel = static_cast<uchar>(255.0 * (pixel - min_pixel_value) / (max_pixel_value - min_pixel_value));
+            const char asciiChar = asciiChars[(scaled_pixel * asciiLength) / 256];
             asciiImage += asciiChar;
         }
         if (pre_space)
@@ -99,7 +99,7 @@ std::string generate_ascii_image(const cv::Mat &image,
                                  int pre_space,
                                  const char *asciiChars,
                                  std::string (*ascii_func)(const cv::Mat &, int, const char *)) {
-    // 调用通过函数指针选择的生成方式
+    // Call the pointer to the function to switch between generating methods
     return ascii_func(image, pre_space, asciiChars);
 }
 
@@ -162,7 +162,7 @@ void print_audio_stream_info(AVStream *audio_stream, AVCodecContext *audio_codec
 }
 
 void audio_callback(void *userdata, Uint8 *stream, int len) {
-    AudioQueue *audio_queue = (AudioQueue *)userdata;
+    auto audio_queue = static_cast<AudioQueue *>(userdata);
     SDL_memset(stream, 0, len);
     SDL_LockMutex(audio_queue->mutex);
     int copied = 0;
@@ -218,12 +218,12 @@ void play_video(const std::map<std::string, std::string> &params) {
     avformat_network_init();
 
     AVFormatContext *format_ctx = avformat_alloc_context();
-    if (avformat_open_input(&format_ctx, video_path.c_str(), NULL, NULL) < 0) {
+    if (avformat_open_input(&format_ctx, video_path.c_str(), nullptr, nullptr) < 0) {
         print_error("Error: Could not open video file", video_path);
         return;
     }
 
-    if (avformat_find_stream_info(format_ctx, NULL) < 0) {
+    if (avformat_find_stream_info(format_ctx, nullptr) < 0) {
         avformat_close_input(&format_ctx);
         print_error("Error: Could not find stream info", video_path);
         return;
@@ -267,7 +267,7 @@ void play_video(const std::map<std::string, std::string> &params) {
         print_error("Error: Could not copy video codec parameters.");
         return;
     }
-    if (avcodec_open2(video_codec_ctx, video_codec, NULL) < 0) {
+    if (avcodec_open2(video_codec_ctx, video_codec, nullptr) < 0) {
         avcodec_free_context(&video_codec_ctx);
         avformat_close_input(&format_ctx);
         print_error("Error: Could not open video codec.");
@@ -275,7 +275,7 @@ void play_video(const std::map<std::string, std::string> &params) {
     }
 
     // Initialize audio queue
-    AudioQueue audio_queue;
+    AudioQueue audio_queue{};
     audio_queue.data = new uint8_t[AUDIO_QUEUE_SIZE];
     audio_queue.size = 0;
     audio_queue.mutex = SDL_CreateMutex();
@@ -292,7 +292,7 @@ void play_video(const std::map<std::string, std::string> &params) {
             audio_codec_ctx = avcodec_alloc_context3(audio_codec);
             if (avcodec_parameters_to_context(audio_codec_ctx, audio_stream->codecpar) < 0) {
                 print_error("Error: Could not copy audio codec parameters.");
-            } else if (avcodec_open2(audio_codec_ctx, audio_codec, NULL) < 0) {
+            } else if (avcodec_open2(audio_codec_ctx, audio_codec, nullptr) < 0) {
                 avcodec_free_context(&audio_codec_ctx);
                 print_error("Error: Could not open audio codec.");
             } else {
@@ -310,7 +310,7 @@ void play_video(const std::map<std::string, std::string> &params) {
 
                     // int device_index = 1; // select_audio_device();
                     list_audio_devices();
-                    audio_device_id = SDL_OpenAudioDevice(NULL, 0, &wanted_spec, &spec, 0);
+                    audio_device_id = SDL_OpenAudioDevice(nullptr, 0, &wanted_spec, &spec, 0);
                     const char *device_name = SDL_GetAudioDeviceName(audio_device_id, 0);
                     if (audio_device_id == 0) {
                         print_error("SDL_OpenAudioDevice Error: ", SDL_GetError());
@@ -327,7 +327,7 @@ void play_video(const std::map<std::string, std::string> &params) {
                             AVChannelLayout out_ch_layout = AV_CHANNEL_LAYOUT_STEREO;
                             if (swr_alloc_set_opts2(&swr_ctx, &out_ch_layout, AV_SAMPLE_FMT_S16, spec.freq,
                                                     &audio_codec_ctx->ch_layout, audio_codec_ctx->sample_fmt, audio_codec_ctx->sample_rate,
-                                                    0, NULL) < 0) {
+                                                    0, nullptr) < 0) {
                                 print_error("Error: Could not set SwrContext options.");
                                 swr_free(&swr_ctx);
                             } else if (swr_init(swr_ctx) < 0) {
@@ -364,8 +364,7 @@ void play_video(const std::map<std::string, std::string> &params) {
 
     bool quit = false, term_size_changed = true;
     int volume = SDL_MIX_MAXVOLUME;
-    int seek_offset = 5; // 快进/快退 5 秒
-    
+
     SDL_Event event;
 
     while (!quit && av_read_frame(format_ctx, packet) >= 0) {
@@ -375,6 +374,7 @@ void play_video(const std::map<std::string, std::string> &params) {
             if (event.type == SDL_QUIT) {
                 quit = true;
             } else if (event.type == SDL_KEYDOWN) {
+                int seek_offset = 5;
                 switch (event.key.keysym.sym) {
                     case SDLK_ESCAPE:
                         quit = true;
@@ -397,6 +397,7 @@ void play_video(const std::map<std::string, std::string> &params) {
                         volume = std::max(volume - SDL_MIX_MAXVOLUME / 10, 0);
                         std::cout << "Volume decreased to " << (volume * 100 / SDL_MIX_MAXVOLUME) << "%" << std::endl;
                         break;
+                    default: break;
                 }
             }
         }
@@ -473,11 +474,11 @@ void play_video(const std::map<std::string, std::string> &params) {
                     int out_samples = (int)av_rescale_rnd(swr_get_delay(swr_ctx, audio_codec_ctx->sample_rate) + frame->nb_samples,
                                                           spec.freq, audio_codec_ctx->sample_rate, AV_ROUND_UP);
                     uint8_t *out_buffer;
-                    av_samples_alloc(&out_buffer, NULL, spec.channels, out_samples, AV_SAMPLE_FMT_S16, 0);
+                    av_samples_alloc(&out_buffer, nullptr, spec.channels, out_samples, AV_SAMPLE_FMT_S16, 0);
                     int samples_out = swr_convert(swr_ctx, &out_buffer, out_samples,
                                                   (const uint8_t **)frame->data, frame->nb_samples);
                     if (samples_out > 0) {
-                        int buffer_size = av_samples_get_buffer_size(NULL, spec.channels, samples_out, AV_SAMPLE_FMT_S16, 1);
+                        int buffer_size = av_samples_get_buffer_size(nullptr, spec.channels, samples_out, AV_SAMPLE_FMT_S16, 1);
                         SDL_LockMutex(audio_queue.mutex);
                         if (audio_queue.size + buffer_size < AUDIO_QUEUE_SIZE) {
                             memcpy(audio_queue.data + audio_queue.size, out_buffer, buffer_size);

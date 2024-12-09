@@ -1,11 +1,12 @@
 //
 //  basic-functions.cpp
-//  CMD-Video-Player
+//  CMD-Media-Player
 //
 //  Created by Robert He on 2024/9/1.
 //
 
 #include "basic-functions.hpp"
+#include <iostream>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -16,9 +17,9 @@ void get_terminal_size(int &width, int &height) {
         width = csbi.dwSize.X;
         height = csbi.dwSize.Y;
     } else {
-        // 获取失败时的处理
-        width = 80;  // 默认宽度
-        height = 25; // 默认高度
+        // When failed to get:
+        width = 80;  // Default width
+        height = 25; // Default height
     }
 }
 
@@ -32,9 +33,9 @@ void get_terminal_size(int &width, int &height) {
         width = ws.ws_col;
         height = ws.ws_row;
     } else {
-        // 获取失败时的处理
-        width = 80;  // 默认宽度
-        height = 24; // 默认高度
+        // When failed to get:
+        width = 80;  // Default width
+        height = 24; // default height
     }
 }
 
@@ -57,14 +58,14 @@ std::string get_config_file_path() {
     if (!home_dir) {
         home_dir = ".";
     }
-    return std::string(home_dir) + "/.config/CMD-Video-Player/config.txt";
+    return std::string(home_dir) + "/.config/CMD-Media-Player/config.txt";
 }
 
 void save_default_options_to_file(std::map<std::string, std::string> &default_options) {
     std::string config_file_path = get_config_file_path();
     std::filesystem::path config_dir = std::filesystem::path(config_file_path).parent_path();
 
-    // 检查目录是否存在，如果不存在则创建
+    // Check if the directory exists, if not then create one
     if (!std::filesystem::exists(config_dir)) {
         if (!std::filesystem::create_directories(config_dir)) {
             std::cerr << "Error: Could not create config directory: " << config_dir << std::endl;
@@ -72,14 +73,14 @@ void save_default_options_to_file(std::map<std::string, std::string> &default_op
         }
     }
 
-    // 打开配置文件进行写入
+    // Load the config file and write in
     std::ofstream config_file(config_file_path);
     if (!config_file.is_open()) {
         std::cerr << "Error: Could not open config file for writing: " << config_file_path << std::endl;
         return;
     }
 
-    // 写入默认选项
+    // Write in the default oftion
     for (const auto& option : default_options) {
         config_file << option.first << "=" << option.second << std::endl;
     }
@@ -177,7 +178,7 @@ Additional commands:
   save               Save the default options to a configuration file
 
 Version: v1.0.0
-Origin: https://github.com/HNRobert/CMD-Video-Player
+Origin: https://github.com/HNRobert/CMD-Media-Player
 )";
     }
 }
@@ -227,23 +228,19 @@ std::pair<int, const char **> parseCommandLine(const std::string &str) {
         }
     }
 
-    // Add the final argument if it's not empty
+    // Add the last argument if any
     if (!currentArg.empty()) {
         result.push_back(currentArg);
     }
 
-    // Convert std::vector<std::string> to const char* argv[]
-    int argc = static_cast<int>(result.size());
-    const char **argv = new const char *[argc + 1]; // +1 for the NULL terminator
-
+    // Convert vector to argc and argv format
+    int argc = result.size();
+    const char **argv = new const char *[argc];
     for (int i = 0; i < argc; ++i) {
-        // Allocate memory for each string and copy its content
-        argv[i] = new char[result[i].size() + 1];               // +1 for null terminator
-        strcpy(const_cast<char *>(argv[i]), result[i].c_str()); // Copy string content
+        argv[i] = result[i].c_str();
     }
-    argv[argc] = nullptr; // NULL terminator for argv
 
-    return std::make_pair(argc, argv);
+    return {argc, argv};
 }
 
 cmdOptions parseArguments(const std::pair<int, const char **> &args, const char *self_name) {

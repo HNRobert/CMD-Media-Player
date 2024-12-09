@@ -1,6 +1,6 @@
 //
 //  main.cpp
-//  CMD-Video-Player
+//  CMD-Media-Player
 //
 //  Created by Robert He on 2024/9/1.
 //
@@ -13,11 +13,15 @@ std::map<std::string, std::string> default_options;
 
 void get_command(std::string input = "$DEFAULT") {
     if (input == "$DEFAULT") {
-        std::cout << std::endl
-                  << "Your command >> ";
-        std::getline(std::cin, input);
+        char *line = readline("Your command >> ");
+        if (line) {
+            if (*line) {
+                add_history(line);
+            }
+            input = std::string(line);
+            free(line);
+        }
     }
-
     cmdOptions cmdOpts = parseArguments(parseCommandLine(input),
                                         SELF_FILE_NAME);
 
@@ -46,7 +50,7 @@ void get_command(std::string input = "$DEFAULT") {
     }
     
     if (cmdOpts.arguments[0] == "set") {
-        // 将参数中的设置保存到默认选项
+        // Save the options and apply them as default
         for (const auto& option : cmdOpts.options) {
             default_options[option.first] = option.second;
         }
@@ -62,7 +66,7 @@ void get_command(std::string input = "$DEFAULT") {
     }
     
     if (cmdOpts.arguments[0] == "play") {
-        // 如果用户没有提供某些选项，使用默认设置
+        // If any option not provided, use the default oftion
         if (!params_include(cmdOpts.options, "-v") && params_include(default_options, "-v")) {
             cmdOpts.options["-v"] = default_options["-v"];
         }

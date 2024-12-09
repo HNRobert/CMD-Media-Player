@@ -1,6 +1,6 @@
 //
 //  basic-functions.hpp
-//  CMD-Video-Player
+//  CMD-Media-Player
 //
 //  Created by Robert He on 2024/9/1.
 //
@@ -13,6 +13,8 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <readline/history.h>
+#include <readline/readline.h>
 
 struct cmdOptions {
     std::map<std::string, std::string> options;

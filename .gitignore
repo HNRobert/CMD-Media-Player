@@ -1,4 +1,9 @@
-CMD-Video-Player.xcodeproj
-CMD-Video-Player/CMD-Video-Player.entitlements
+CMD-Media-Player.xcodeproj
+CMD-Media-Player/CMD-Media-Player.entitlements
 .vscode
 .DS_Store
+
+.idea
+cmake-build-debug
+cmake-build-release
+build
