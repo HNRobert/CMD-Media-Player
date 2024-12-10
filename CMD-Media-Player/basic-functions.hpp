@@ -10,15 +10,17 @@
 
 #include <iostream>
 #include <map>
+#include <vector>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <readline/history.h>
 #include <readline/readline.h>
 
 struct cmdOptions {
-    std::map<std::string, std::string> options;
     std::vector<std::string> arguments;
+    std::map<std::string, std::string> options;
 };
 
 template <typename T>
@@ -41,6 +43,7 @@ void printMap(const std::map<K, V> &m) {
     }
 }
 
+
 void get_terminal_size(int &width, int &height);
 std::string get_system_type();
 void save_default_options_to_file(std::map<std::string, std::string> &default_options);
@@ -48,8 +51,9 @@ void load_default_options_from_file(std::map<std::string, std::string> &default_
 void show_interface();
 void show_help(bool full_version = false);
 void clear_screen();
-std::pair<int, const char**> parseCommandLine(const std::string &str);
-cmdOptions parseArguments(const std::pair<int, const char**>& args, const char* self_name);
+std::vector<std::string> argv_to_vector(int argc, const char *argv[]);
+std::vector<std::string> parseCommandLine(const std::string &str);
+cmdOptions parseArguments(const std::vector<std::string> &args, const char *self_name);
 void print_error(std::string error_name, std::string error_detail = "");
 
 #endif /* basic_functions_hpp */

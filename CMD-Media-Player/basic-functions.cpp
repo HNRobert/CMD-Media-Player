@@ -105,7 +105,7 @@ void load_default_options_from_file(std::map<std::string, std::string> &default_
 
     std::string line;
     while (std::getline(config_file, line)) {
-        size_t equals_pos = line.find('=');
+        std::size_t equals_pos = line.find('=');
         if (equals_pos != std::string::npos) {
             std::string key = line.substr(0, equals_pos);
             std::string value = line.substr(equals_pos + 1);
@@ -190,13 +190,17 @@ void clear_screen() {
         system("clear");
 }
 
-std::pair<int, const char **> parseCommandLine(const std::string &str) {
+std::vector<std::string> argv_to_vector(int argc, const char *argv[]) {
+    return std::vector<std::string>(argv, argv + argc);
+}
+
+std::vector<std::string> parseCommandLine(const std::string &str) {
     std::vector<std::string> result;
     std::string currentArg;
     bool inQuotes = false; // if we're between "s or 's
     char quoteChar = '\0'; // to track which quote character is used (' or ")
 
-    for (size_t i = 0; i < str.length(); ++i) {
+    for (std::size_t i = 0; i < str.length(); ++i) {
         char ch = str[i];
 
         if (ch == '"' || ch == '\'') {
@@ -233,28 +237,18 @@ std::pair<int, const char **> parseCommandLine(const std::string &str) {
         result.push_back(currentArg);
     }
 
-    // Convert vector to argc and argv format
-    int argc = result.size();
-    const char **argv = new const char *[argc];
-    for (int i = 0; i < argc; ++i) {
-        argv[i] = result[i].c_str();
-    }
-
-    return {argc, argv};
+    return result;
 }
 
-cmdOptions parseArguments(const std::pair<int, const char **> &args, const char *self_name) {
+cmdOptions parseArguments(const std::vector<std::string> &args, const char *self_name) {
     cmdOptions cmdOptions;
-    int argc = args.first;
-    const char **argv = args.second;
-    for (int i = 0; i < argc; ++i) {
-        std::string arg = argv[i];
+    for (size_t i = 0; i < args.size(); ++i) {
+        std::string arg = args[i];
         if (arg == self_name)
             continue;
         if (arg[0] == '-') { // option starts with '-'
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
-                // Check if there's a value following or not
-                cmdOptions.options[arg] = argv[++i];
+            if (i + 1 < args.size() && args[i + 1][0] != '-') {
+                cmdOptions.options[arg] = args[++i];
             } else {
                 cmdOptions.options[arg] = ""; // option without value
             }
@@ -262,7 +256,6 @@ cmdOptions parseArguments(const std::pair<int, const char **> &args, const char 
             cmdOptions.arguments.push_back(arg); // normal arg
         }
     }
-
     return cmdOptions;
 }
 

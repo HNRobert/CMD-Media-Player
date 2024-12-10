@@ -13,7 +13,7 @@ std::map<std::string, std::string> default_options;
 
 void get_command(std::string input = "$DEFAULT") {
     if (input == "$DEFAULT") {
-        char *line = readline("Your command >> ");
+        char *line = readline("\nYour command >> ");
         if (line) {
             if (*line) {
                 add_history(line);
@@ -64,7 +64,7 @@ void get_command(std::string input = "$DEFAULT") {
         get_command();
         return;
     }
-    
+    std::cout<<cmdOpts.arguments[0]<<std::endl;
     if (cmdOpts.arguments[0] == "play") {
         // If any option not provided, use the default oftion
         if (!params_include(cmdOpts.options, "-v") && params_include(default_options, "-v")) {
@@ -105,19 +105,19 @@ void start_ui() {
 }
 
 int main(int argc, const char *argv[]) {
-    load_default_options_from_file(default_options);
-    
-    clear_screen();
     SELF_FILE_NAME = argv[0];
-    switch (argc) {
-        case 1:
-            start_ui();
-            break;
-        case 2:
-            play_video(parseArguments(std::make_pair(argc, argv), SELF_FILE_NAME).options);
-            break;
-        default:
-            start_ui();
+    auto args = argv_to_vector(argc, argv);
+
+    load_default_options_from_file(default_options);
+
+    clear_screen();
+
+    if (args.size() == 1) {
+        start_ui();
+    } else if (args.size() == 2) {
+        play_video(parseArguments(args, SELF_FILE_NAME).options);
+    } else {
+        start_ui();
     }
     return 0;
 }
