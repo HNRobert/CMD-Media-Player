@@ -134,31 +134,33 @@ void show_interface() {
 )";
 }
 
-void show_help(bool show_full) {
+void show_help_prompt() {
     std::cout<<R"(
 -------- Type "help" and return for help --------
 )";
+}
 
-    if (show_full) {
-        std::cout << R"(
+void show_help(bool show_full) {
+    std::cout << R"(
 Usage:
-  play -v /path/to/video [-ct st/dy] [-c s/l] [-chars "@%#*+=-:. "]
-
+  [command] [-v /path/to/video] [-st|-dy] [-s|-l] [-chars "@%#*+=-:. "]
+)";
+    if (show_full) {
+        std::cout<< R"(
 Options:
   -v /path/to/video    Specify the video file to play
-  -ct [st|dy]          Choose the contrast mode for ASCII art generation
-                        st: Static contrast (default)
-                        dy: Dynamic contrast, scales the contrast dynamically 
-                            based on the video
-  -c [s|l]             Choose the character set for ASCII art
-                        s: Short character set "@#*+-:. " (default)
-                        l: Long character set "@%#*+=^~-;:,'.` "
+  -st                  Use static contrast (default)
+  -dy                  Use dynamic contrast 
+                        Scaling the contrast dynamically 
+                        based on each frame
+  -s                   Use short character set "@#*+-:. " (default)
+  -l                   Use long character set "@%#*+=^~-;:,'.` "
   -chars "sequence"    Set a custom character sequence for ASCII art 
-                       (perior to -c)
+                        (perior to -s and -l)
                         Example: "@%#*+=-:. "
 
 Examples:
-  play -v video.mp4 -ct dy -c l
+  play -v video.mp4 -dy -l
       Play 'video.mp4' using dynamic contrast and long character set 
       for ASCII art.
   play -v 'a video.mp4' -chars "@#&*+=-:. "
@@ -240,7 +242,9 @@ std::vector<std::string> parseCommandLine(const std::string &str) {
     return result;
 }
 
-cmdOptions parseArguments(const std::vector<std::string> &args, const char *self_name) {
+cmdOptions parseArguments(const std::vector<std::string> &args,
+                          std::map<std::string, std::string> defaultOptions,
+                          const char *self_name) {
     cmdOptions cmdOptions;
     for (size_t i = 0; i < args.size(); ++i) {
         std::string arg = args[i];
@@ -254,6 +258,12 @@ cmdOptions parseArguments(const std::vector<std::string> &args, const char *self
             }
         } else {
             cmdOptions.arguments.push_back(arg); // normal arg
+        }
+    }
+    // Add default options if they do not exist in cmdOptions
+    for (const auto &defaultOption : defaultOptions) {
+        if (!params_include(cmdOptions.options, defaultOption.first)) {
+            cmdOptions.options[defaultOption.first] = defaultOption.second;
         }
     }
     return cmdOptions;

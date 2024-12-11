@@ -49,11 +49,12 @@ std::string get_system_type();
 void save_default_options_to_file(std::map<std::string, std::string> &default_options);
 void load_default_options_from_file(std::map<std::string, std::string> &default_options);
 void show_interface();
+void show_help_prompt();
 void show_help(bool full_version = false);
 void clear_screen();
 std::vector<std::string> argv_to_vector(int argc, const char *argv[]);
 std::vector<std::string> parseCommandLine(const std::string &str);
-cmdOptions parseArguments(const std::vector<std::string> &args, const char *self_name);
+cmdOptions parseArguments(const std::vector<std::string> &args, std::map<std::string, std::string> defaultOptions, const char *self_name);
 void print_error(std::string error_name, std::string error_detail = "");
 
 #endif /* basic_functions_hpp */

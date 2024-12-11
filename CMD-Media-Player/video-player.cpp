@@ -10,17 +10,6 @@
 
 #define AUDIO_QUEUE_SIZE (1024 * 1024) // 1MB buffer
 
-bool is_escape_key_pressed() {
-#ifdef _WIN32
-    // Windows-specific code to check if the ESC key is pressed
-    return GetAsyncKeyState(VK_ESCAPE) & 0x8000;
-#else
-    // For Linux and macOS, we can implement a similar functionality if needed.
-    // Here, you could use termios.h or another library to handle keypresses.
-    return false; // Placeholder; you might want to implement platform-specific code here.
-#endif
-}
-
 struct AudioQueue {
     uint8_t *data;
     int size;
@@ -182,6 +171,7 @@ void audio_callback(void *userdata, Uint8 *stream, int len) {
 const std::map<std::string, std::function<std::string(const cv::Mat &, int, const char *)>> param_func_pair = {
     {"dy", image_to_ascii_dy_contrast},
     {"st", image_to_ascii}};
+
 const std::map<std::string, std::string> char_set_pairs = {
     {"s", ASCII_SEQ_SHORT},
     {"S", ASCII_SEQ_SHORT},
@@ -202,14 +192,20 @@ void play_video(const std::map<std::string, std::string> &params) {
 
     if (params_include(params, "-ct") && params_include(param_func_pair, params.at("-ct"))) {
         generate_ascii_func = param_func_pair.at(params.at("-ct"));
+    } else if (params_include(params, "-dy")) {
+        generate_ascii_func = image_to_ascii_dy_contrast;
+    } else if (params_include(params, "-st")) {
+        generate_ascii_func = image_to_ascii;
     } else {
         generate_ascii_func = image_to_ascii;
     }
 
-    if (params_include(params, "-chars")) {
+    if (params_include(params, "-chars") && params.at("-chars").length() > 0) {
         frame_chars = params.at("-chars").c_str();
-    } else if (params_include(params, "-c") && params_include(char_set_pairs, params.at("-c"))) {
-        frame_chars = char_set_pairs.at(params.at("-c")).c_str();
+    } else if (params_include(params, "-s")) {
+        frame_chars = ASCII_SEQ_SHORT;
+    } else if (params_include(params, "-l")) {
+        frame_chars = ASCII_SEQ_LONG;
     } else {
         frame_chars = ASCII_SEQ_SHORT;
     }
@@ -497,10 +493,6 @@ void play_video(const std::map<std::string, std::string> &params) {
         }
 
         av_packet_unref(packet);
-
-        if (is_escape_key_pressed()) {
-            break;
-        }
     }
 
     // Clean up
