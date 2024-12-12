@@ -5,8 +5,8 @@
 //  Created by Robert He on 2024/9/1.
 //
 
-#include "basic-functions.hpp"
-#include "video-player.hpp"
+#include "cmd-media-player/basic-functions.hpp"
+#include "cmd-media-player/video-player.hpp"
 
 const std::string VERSION = "1.0.1";
 const std::string UPDATE_DATE = "Dec 12th 2024";

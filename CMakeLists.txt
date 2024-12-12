@@ -7,7 +7,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-if(CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
     set(HOMEBREW_PREFIX "/opt/homebrew")
 else()
     set(HOMEBREW_PREFIX "/usr/local")
@@ -19,20 +19,23 @@ include_directories(
     ${HOMEBREW_PREFIX}/opt/sdl2/include
 )
 
+
 link_directories(
     ${HOMEBREW_PREFIX}/opt/opencv/lib
     ${HOMEBREW_PREFIX}/opt/ffmpeg/lib
     ${HOMEBREW_PREFIX}/opt/sdl2/lib
-)
-
+    )
+    
 add_executable(CMD-Media-Player
-    CMD-Media-Player/basic-functions.cpp
-    CMD-Media-Player/basic-functions.hpp
-    CMD-Media-Player/main.cpp
-    CMD-Media-Player/video-player.cpp
-    CMD-Media-Player/video-player.hpp
+    src/basic-functions.cpp
+    src/main.cpp
+    src/video-player.cpp
 )
 
+target_include_directories(CMD-Media-Player PUBLIC
+    ${PROJECT_SOURCE_DIR}/include
+)
+message(${PROJECT_SOURCE_DIR}/include) 
 target_link_libraries(CMD-Media-Player
     avcodec
     avformat
@@ -51,8 +54,8 @@ install(TARGETS CMD-Media-Player DESTINATION bin)
 
 # Install header files
 install(FILES
-    CMD-Media-Player/basic-functions.hpp
-    CMD-Media-Player/video-player.hpp
+    src/basic-functions.hpp
+    src/video-player.hpp
     DESTINATION include/CMD-Media-Player
 )
 

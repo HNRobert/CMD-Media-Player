@@ -5,8 +5,8 @@
 //  Created by Robert He on 2024/9/2.
 //
 
-#include "basic-functions.hpp"
-#include "video-player.hpp"
+#include "cmd-media-player/video-player.hpp"
+#include "cmd-media-player/basic-functions.hpp"
 
 #define AUDIO_QUEUE_SIZE (1024 * 1024) // 1MB buffer
 

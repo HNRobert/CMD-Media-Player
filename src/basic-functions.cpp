@@ -5,7 +5,7 @@
 //  Created by Robert He on 2024/9/1.
 //
 
-#include "basic-functions.hpp"
+#include "cmd-media-player/basic-functions.hpp"
 #include <iostream>
 
 #ifdef _WIN32
