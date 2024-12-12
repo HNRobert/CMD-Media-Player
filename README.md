@@ -10,7 +10,7 @@ brew tap hnrobert/cmd-media-player && brew install cmd-media-player
 
 ## Function Description
 
-![main-page](https://github.com/HNRobert/CMD-Media-Player/blob/main/assets/main-page.png?raw=true)
+![main-page](https://github.com/user-attachments/assets/398396d0-523d-4071-be3c-bf444629a939)
 
 ```txt
   ____ __  __ ____     __  __          _ _       
@@ -74,8 +74,8 @@ Examples:
 
 ## Effect
 
-![kk1](https://github.com/HNRobert/CMD-Media-Player/blob/main/assets/kk1.png?raw=true)
+![kk1](https://github.com/user-attachments/assets/e284168c-05bf-4312-ab50-fcc3b8e3759c)
 
 > You can use command +/- to scale the characters, then scale the terminal window to change the resolution
 
-![kk2](https://github.com/HNRobert/CMD-Media-Player/blob/main/assets/kk2.png?raw=true)
+![kk2](https://github.com/user-attachments/assets/9ecb18d5-c500-4da0-abb0-dc8082dda450)
