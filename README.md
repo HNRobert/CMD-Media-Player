@@ -72,7 +72,10 @@ Examples:
 
 ```
 
-![kk1](https://github.com/HNRobert/CMD-Media-Player/blob/main/assets/kk1.png?raw=true)
-![kk2](https://github.com/HNRobert/CMD-Media-Player/blob/main/assets/kk2.png?raw=true)
+## Effect
 
-It only supports macOS on Apple Silicon currently. If needed, other versions would be rolled out as long as you contact me.
+![kk1](https://github.com/HNRobert/CMD-Media-Player/blob/main/assets/kk1.png?raw=true)
+
+> You can use command +/- to scale the characters, then scale the terminal window to change the resolution
+
+![kk2](https://github.com/HNRobert/CMD-Media-Player/blob/main/assets/kk2.png?raw=true)
