@@ -1,5 +1,5 @@
 CMD-Media-Player.xcodeproj
-CMD-Media-Player/CMD-Media-Player.entitlements
+src/CMD-Media-Player.entitlements
 .vscode
 .DS_Store
 
