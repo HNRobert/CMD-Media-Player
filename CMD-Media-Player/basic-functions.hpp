@@ -24,11 +24,6 @@ struct cmdOptions {
 };
 
 template <typename T>
-bool params_include(const std::map<std::string, T> &params, std::string arg) {
-    return params.find(arg) != params.end();
-}
-
-template <typename T>
 void printVector(const std::vector<T> &vec) {
     for (const auto &element : vec) {
         std::cout << element << " ";
@@ -43,6 +38,7 @@ void printMap(const std::map<K, V> &m) {
     }
 }
 
+extern const std::string VERSION; // Declare the version variable
 
 void get_terminal_size(int &width, int &height);
 std::string get_system_type();

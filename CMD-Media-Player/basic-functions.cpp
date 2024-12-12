@@ -114,7 +114,7 @@ void load_default_options_from_file(std::map<std::string, std::string> &default_
     }
     
     config_file.close();
-    std::cout << "Default options loaded from " << config_file_path << std::endl;
+    // std::cout << "Default options loaded from " << config_file_path << std::endl;
 }
 
 void show_interface() {
@@ -140,14 +140,17 @@ void show_help_prompt() {
 )";
 }
 
+extern const std::string VERSION; // Declare the version variable
+
 void show_help(bool show_full) {
     std::cout << R"(
 Usage:
-  [command] [-v /path/to/video] [-st|-dy] [-s|-l] [-chars "@%#*+=-:. "]
+  [command] [-v /path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] /
+  [/path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] 
+
 )";
     if (show_full) {
-        std::cout<< R"(
-Options:
+        std::cout<< R"(Options:
   -v /path/to/video    Specify the video file to play
   -st                  Use static contrast (default)
   -dy                  Use dynamic contrast 
@@ -155,32 +158,40 @@ Options:
                         based on each frame
   -s                   Use short character set "@#*+-:. " (default)
   -l                   Use long character set "@%#*+=^~-;:,'.` "
-  -chars "sequence"    Set a custom character sequence for ASCII art 
-                        (perior to -s and -l)
+  -c "sequence"        Set a custom character sequence for ASCII art 
+                        (prior to -s and -l)
                         Example: "@%#*+=-:. "
+  --version            Show the version of the program
+  -h, --help           Show this help message
 
-Examples:
-  play -v video.mp4 -dy -l
-      Play 'video.mp4' using dynamic contrast and long character set 
-      for ASCII art.
-  play -v 'a video.mp4' -chars "@#&*+=-:. "
-      Play 'a video.mp4' with a custom character sequence for ASCII art.
-      (add quotation marks on both sides if the path contains space)
-  set -v 'default.mp4'
-      Set a default video path to 'default.mp4'
-      for future playback commands.
-  set -ct dy
-      Set dynamic contrast as the default mode 
-      for future playback commands.
 
 Additional commands:
   help               Show this help message
   exit               Exit the program
   set                Set default options (e.g., video path, contrast mode)
+  reset              Reset the default options to the initial state
   save               Save the default options to a configuration file
 
-Version: v1.0.0
-Origin: https://github.com/HNRobert/CMD-Media-Player
+Examples:
+  play -v video.mp4 -dy -l
+      Play 'video.mp4' using dynamic contrast and long character set 
+      for ASCII art.
+  play -v 'a video.mp4' -c "@#&*+=-:. "
+      Play 'a video.mp4' with a custom character sequence for ASCII art.
+      (add quotation marks on both sides if the path contains space)
+      (if quotation marks included in the seq, use backslash to escape)
+  set -v 'default.mp4'
+      Set a default video path to 'default.mp4'
+      for future playback commands.
+  set -dy
+      Set dynamic contrast as the default mode 
+      for future playback commands.
+  reset -v
+      Reset the default video path to the initial state.
+
+Version: )" << VERSION << R"(
+Homepage: https://github.com/HNRobert/CMD-Media-Player
+
 )";
     }
 }
@@ -262,7 +273,7 @@ cmdOptions parseArguments(const std::vector<std::string> &args,
     }
     // Add default options if they do not exist in cmdOptions
     for (const auto &defaultOption : defaultOptions) {
-        if (!params_include(cmdOptions.options, defaultOption.first)) {
+        if (cmdOptions.options.count(defaultOption.first) == 0) {
             cmdOptions.options[defaultOption.first] = defaultOption.second;
         }
     }
@@ -274,6 +285,6 @@ void print_error(std::string error_name, std::string error_detail) {
     if (error_detail.length())
         std::cout << ": " << error_detail;
     std::cout << std::endl
-              << "Press any key to continue..." << std::endl;
+              << "Press any key to continue...";
     getchar();
 }

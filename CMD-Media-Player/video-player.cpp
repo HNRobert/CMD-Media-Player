@@ -183,28 +183,28 @@ void play_video(const std::map<std::string, std::string> &params) {
     const char *frame_chars;
     std::function<std::string(const cv::Mat &, int, const char *)> generate_ascii_func = nullptr;
 
-    if (params_include(params, "-v")) {
+    if (params.count("-v")) {
         video_path = params.at("-v");
     } else {
         print_error("No video but wanna play? Really? \nAdd a -v param, or type \"help\" to get more usage");
         return;
     }
 
-    if (params_include(params, "-ct") && params_include(param_func_pair, params.at("-ct"))) {
+    if (params.count("-ct") && param_func_pair.count(params.at("-ct"))) {
         generate_ascii_func = param_func_pair.at(params.at("-ct"));
-    } else if (params_include(params, "-dy")) {
+    } else if (params.count("-dy")) {
         generate_ascii_func = image_to_ascii_dy_contrast;
-    } else if (params_include(params, "-st")) {
+    } else if (params.count("-st")) {
         generate_ascii_func = image_to_ascii;
     } else {
         generate_ascii_func = image_to_ascii;
     }
 
-    if (params_include(params, "-chars") && params.at("-chars").length() > 0) {
-        frame_chars = params.at("-chars").c_str();
-    } else if (params_include(params, "-s")) {
+    if (params.count("-c") && params.at("-c").length() > 0) {
+        frame_chars = params.at("-c").c_str();
+    } else if (params.count("-s")) {
         frame_chars = ASCII_SEQ_SHORT;
-    } else if (params_include(params, "-l")) {
+    } else if (params.count("-l")) {
         frame_chars = ASCII_SEQ_LONG;
     } else {
         frame_chars = ASCII_SEQ_SHORT;

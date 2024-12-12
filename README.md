@@ -5,12 +5,12 @@
 ### Homebrew(arm64)
 
 ```sh
-brew tap hnrobert/cmd-video-player && brew install cmd-video-player
+brew tap hnrobert/cmd-media-player && brew install cmd-media-player
 ```
 
-## Function Description:
+## Function Description
 
-<img width="697" alt="image" src="https://github.com/user-attachments/assets/75527a63-4e69-4a9a-a5a6-351450d97931">
+![main-page](https://github.com/HNRobert/CMD-Media-Player/assets/main-page.png)
 
 ```txt
   ____ __  __ ____     __  __          _ _       
@@ -27,44 +27,52 @@ brew tap hnrobert/cmd-video-player && brew install cmd-video-player
                |___/ 
 
 Usage:
-  play -v /path/to/video [-ct st/dy] [-c s/l] [-chars "@%#*+=-:. "]
+  [command] [-v /path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] /
+  [/path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] 
 
 Options:
   -v /path/to/video    Specify the video file to play
-  -ct [st|dy]          Choose the contrast mode for ASCII art generation
-                        st: Static contrast (default)
-                        dy: Dynamic contrast, scales the contrast dynamically 
-                            based on the video
-  -c [s|l]             Choose the character set for ASCII art
-                        s: Short character set "@#*+-:. " (default)
-                        l: Long character set "@%#*+=^~-;:,'.` "
-  -chars "sequence"    Set a custom character sequence for ASCII art 
-                       (perior to -c)
+  -st                  Use static contrast (default)
+  -dy                  Use dynamic contrast 
+                        Scaling the contrast dynamically 
+                        based on each frame
+  -s                   Use short character set "@#*+-:. " (default)
+  -l                   Use long character set "@%#*+=^~-;:,'.` "
+  -c "sequence"        Set a custom character sequence for ASCII art 
+                        (prior to -s and -l)
                         Example: "@%#*+=-:. "
 
-Examples:
-  play -v video.mp4 -ct dy -c l
-      Play 'video.mp4' using dynamic contrast and long character set 
-      for ASCII art.
-  play -v 'a video.mp4' -chars "@#&*+=-:. "
-      Play 'a video.mp4' with a custom character sequence for ASCII art.
-      (add quotation marks on both sides if the path contains space)
-  set -v 'default.mp4'
-      Set a default video path to 'default.mp4'
-      for future playback commands.
-  set -ct dy
-      Set dynamic contrast as the default mode 
-      for future playback commands.
+  --version            Show the version of the program
+  -h, --help           Show this help message
+
 
 Additional commands:
   help               Show this help message
   exit               Exit the program
-  set                Set default options (e.g. video path, contrast mode)
+  set                Set default options (e.g., video path, contrast mode)
+  reset              Reset the default options to the initial state
   save               Save the default options to a configuration file
+
+Examples:
+  play -v video.mp4 -dy -l
+      Play 'video.mp4' using dynamic contrast and long character set 
+      for ASCII art.
+  play -v 'a video.mp4' -c "@#&*+=-:. "
+      Play 'a video.mp4' with a custom character sequence for ASCII art.
+      (add quotation marks on both sides if the path contains space)
+      (if quotation marks included in the seq, use backslash to escape)
+  set -v 'default.mp4'
+      Set a default video path to 'default.mp4'
+      for future playback commands.
+  set -dy
+      Set dynamic contrast as the default mode 
+      for future playback commands.
+  reset -v
+      Reset the default video path to the initial state.
 
 ```
 
-<img width="1075" alt="Screenshot 2024-09-08 at 17 52 12" src="https://github.com/user-attachments/assets/a219cb31-0a63-4b8f-bdba-4febac3b264e">
-<img width="1131" alt="Screenshot 2024-09-08 at 17 51 00" src="https://github.com/user-attachments/assets/e8198745-13e8-4a57-b648-ac1539e6fd22">
+![kk1](https://github.com/HNRobert/CMD-Media-Player/assets/kk1.png)
+![kk2](https://github.com/HNRobert/CMD-Media-Player/assets/kk2.png)
 
 It only supports macOS on Apple Silicon currently. If needed, other versions would be rolled out as long as you contact me.

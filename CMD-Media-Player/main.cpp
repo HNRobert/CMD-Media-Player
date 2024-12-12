@@ -8,6 +8,9 @@
 #include "basic-functions.hpp"
 #include "video-player.hpp"
 
+const std::string VERSION = "1.0.1";
+const std::string UPDATE_DATE = "Dec 12th 2024";
+
 const char *SELF_FILE_NAME;
 std::map<std::string, std::string> default_options;
 
@@ -29,20 +32,33 @@ void get_command(std::string input = "$DEFAULT") {
                                         default_options,
                                         SELF_FILE_NAME);
 
+    // printVector(parseCommandLine(input));
+    // printVector(cmdOpts.arguments);
+    // printMap(cmdOpts.options);
+    if (cmdOpts.options.count("--version")) {
+        std::cout << "CMD-Media-Player version " << VERSION << "\nUpdated on: " << UPDATE_DATE << std::endl << std::endl;
+        get_command(next_step);
+        return;
+    }
+    if (cmdOpts.options.count("-h") || cmdOpts.options.count("--help")) {
+        show_help(true);
+        get_command(next_step);
+        return;
+    }
     
-    printVector(parseCommandLine(input));
-    printVector(cmdOpts.arguments);
-    printMap(cmdOpts.options);
-    
-    
-    if (cmdOpts.arguments.size() == 0) {
+    if (cmdOpts.arguments.size() == 0 && cmdOpts.options.size() == 0) {
+        get_command(next_step);
+        return;
+    } else if (cmdOpts.arguments.size() == 0) {
         print_error("Arguments Error", "Please insert your argument");
         show_help();
+        show_help_prompt();
         get_command(next_step);
         return;
     } else if (cmdOpts.arguments.size() > 1) {
         print_error("Arguments Error", "Only ONE argument is allowed!");
         show_help();
+        show_help_prompt();
         get_command(next_step);
         return;
     }
@@ -52,17 +68,34 @@ void get_command(std::string input = "$DEFAULT") {
         get_command(next_step);
         return;
     }
-    
+
     if (cmdOpts.arguments[0] == "set") {
         // Save the options and apply them as default
-        for (const auto& option : cmdOpts.options) {
+        for (const auto &option : cmdOpts.options) {
             default_options[option.first] = option.second;
         }
         std::cout << "Settings updated successfully." << std::endl;
+        if (exit_next) {
+            save_default_options_to_file(default_options);
+        }
         get_command(next_step);
         return;
     }
-    
+
+    if (cmdOpts.arguments[0] == "reset") {
+        for (const auto &option : cmdOpts.options) {
+            if (default_options.count(option.first)) {
+                default_options.erase(option.first);
+            }
+        }
+        std::cout << "Settings reset to default." << std::endl;
+        if (exit_next) {
+            save_default_options_to_file(default_options);
+        }
+        get_command(next_step);
+        return;
+    }
+
     if (cmdOpts.arguments[0] == "save") {
         save_default_options_to_file(default_options);
         get_command(next_step);
@@ -70,34 +103,23 @@ void get_command(std::string input = "$DEFAULT") {
     }
 
     if (cmdOpts.arguments[0] == "play") {
-        // If any option not provided, use the default oftion
-        // if (!params_include(cmdOpts.options, "-v") && params_include(default_options, "-v")) {
-        //     cmdOpts.options["-v"] = default_options["-v"];
-        // }
-        // if (!params_include(cmdOpts.options, "-ct") && params_include(default_options, "-ct")) {
-        //     cmdOpts.options["-ct"] = default_options["-ct"];
-        // }
-        // if (!params_include(cmdOpts.options, "-c") && params_include(default_options, "-c")) {
-        //     cmdOpts.options["-c"] = default_options["-c"];
-        // }
-        // if (!params_include(cmdOpts.options, "-chars") && params_include(default_options, "-chars")) {
-        //     cmdOpts.options["-chars"] = default_options["-chars"];
-        // }
-        
         play_video(cmdOpts.options);
 
         show_interface();
         get_command(next_step);
         return;
     }
+    
+    if (cmdOpts.arguments[0] == "exit") {
+        return;
+    }
 
     if (std::filesystem::exists(cmdOpts.arguments[0])) {
         std::map<std::string, std::string> opt = {{"-v", cmdOpts.arguments[0]}};
+        for (const auto &option : cmdOpts.options) {
+            opt[option.first] = option.second;
+        }
         play_video(opt);
-    }
-
-    if (cmdOpts.arguments[0] == "exit") {
-        return;
     }
 
     get_command(next_step);
@@ -115,14 +137,17 @@ int main(int argc, const char *argv[]) {
 
     load_default_options_from_file(default_options);
 
-    clear_screen();
-
     if (args.size() == 1) {
+        clear_screen();
         start_ui();
     } else {
         // if (args.size() > 1)
-        play_video(parseArguments(args, default_options, SELF_FILE_NAME).options);
+        std::string combined_args;
+        for (size_t i = 1; i < args.size(); ++i) {
+            combined_args += args[i] + " ";
+        }
+        get_command(combined_args);
     }
-    
+
     return 0;
 }
