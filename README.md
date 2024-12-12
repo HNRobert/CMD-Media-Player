@@ -10,7 +10,7 @@ brew tap hnrobert/cmd-media-player && brew install cmd-media-player
 
 ## Function Description
 
-![main-page](https://github.com/HNRobert/CMD-Media-Player/assets/main-page.png)
+![main-page](https://github.com/HNRobert/CMD-Media-Player/blob/main/assets/main-page.png?raw=true)
 
 ```txt
   ____ __  __ ____     __  __          _ _       
@@ -72,7 +72,7 @@ Examples:
 
 ```
 
-![kk1](https://github.com/HNRobert/CMD-Media-Player/assets/kk1.png)
-![kk2](https://github.com/HNRobert/CMD-Media-Player/assets/kk2.png)
+![kk1](https://github.com/HNRobert/CMD-Media-Player/blob/main/assets/kk1.png?raw=true)
+![kk2](https://github.com/HNRobert/CMD-Media-Player/blob/main/assets/kk2.png?raw=true)
 
 It only supports macOS on Apple Silicon currently. If needed, other versions would be rolled out as long as you contact me.
