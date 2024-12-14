@@ -358,43 +358,45 @@ void play_video(const std::map<std::string, std::string> &params) {
     int frame_delay = static_cast<int>(1000.0 / fps);
     int termWidth, termHeight, frameWidth, frameHeight, prevTermWidth = 0, prevTermHeight = 0, w_space_count = 0, h_line_count = 0;
 
+    // Initialize ncurses
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    nodelay(stdscr, TRUE);
+
     bool quit = false, term_size_changed = true;
     int volume = SDL_MIX_MAXVOLUME;
-
-    SDL_Event event;
 
     while (!quit && av_read_frame(format_ctx, packet) >= 0) {
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
-                quit = true;
-            } else if (event.type == SDL_KEYDOWN) {
-                int seek_offset = 5;
-                switch (event.key.keysym.sym) {
-                    case SDLK_ESCAPE:
-                        quit = true;
-                        break;
-                    case SDLK_LEFT:
-                        av_seek_frame(format_ctx, -1, current_time - seek_offset, AVSEEK_FLAG_BACKWARD | AVSEEK_FLAG_ANY);
-                        avcodec_flush_buffers(video_codec_ctx);
-                        if (audio_codec_ctx) avcodec_flush_buffers(audio_codec_ctx);
-                        break;
-                    case SDLK_RIGHT:
-                        av_seek_frame(format_ctx, -1, current_time + seek_offset, AVSEEK_FLAG_ANY);
-                        avcodec_flush_buffers(video_codec_ctx);
-                        if (audio_codec_ctx) avcodec_flush_buffers(audio_codec_ctx);
-                        break;
-                    case SDLK_UP:
-                        volume = std::min(volume + SDL_MIX_MAXVOLUME / 10, SDL_MIX_MAXVOLUME);
-                        std::cout << "Volume increased to " << (volume * 100 / SDL_MIX_MAXVOLUME) << "%" << std::endl;
-                        break;
-                    case SDLK_DOWN:
-                        volume = std::max(volume - SDL_MIX_MAXVOLUME / 10, 0);
-                        std::cout << "Volume decreased to " << (volume * 100 / SDL_MIX_MAXVOLUME) << "%" << std::endl;
-                        break;
-                    default: break;
-                }
+        int ch = getch();
+        if (ch != ERR) {
+            switch (ch) {
+                case 27: // ESC key
+                case 3:  // Ctrl+C
+                    quit = true;
+                    break;
+                case KEY_LEFT:
+                    // Handle left arrow key
+                    std::cout << "Left arrow key pressed" << std::endl;
+                    break;
+                case KEY_RIGHT:
+                    // Handle right arrow key
+                    std::cout << "Right arrow key pressed" << std::endl;
+                    break;
+                case KEY_UP:
+                    // Volume up
+                    volume = std::min(volume + SDL_MIX_MAXVOLUME / 10, SDL_MIX_MAXVOLUME);
+                    std::cout << "Volume increased to " << (volume * 100 / SDL_MIX_MAXVOLUME) << "%" << std::endl;
+                    break;
+                case KEY_DOWN:
+                    // Volume down
+                    volume = std::max(volume - SDL_MIX_MAXVOLUME / 10, 0);
+                    std::cout << "Volume decreased to " << (volume * 100 / SDL_MIX_MAXVOLUME) << "%" << std::endl;
+                    sleep(1);
+                    break;
             }
         }
 
@@ -477,9 +479,10 @@ void play_video(const std::map<std::string, std::string> &params) {
                         int buffer_size = av_samples_get_buffer_size(nullptr, spec.channels, samples_out, AV_SAMPLE_FMT_S16, 1);
                         SDL_LockMutex(audio_queue.mutex);
                         if (audio_queue.size + buffer_size < AUDIO_QUEUE_SIZE) {
+                            // Apply volume control
                             memcpy(audio_queue.data + audio_queue.size, out_buffer, buffer_size);
+                            // SDL_MixAudioFormat(audio_queue.data + audio_queue.size, out_buffer, AUDIO_S16SYS, buffer_size, volume);
                             audio_queue.size += buffer_size;
-                            // std::cout << "Added " << buffer_size << " bytes to audio queue. Total size: " << audio_queue.size;
                         } else {
                             // std::cout << "Audio queue full. Discarding " << buffer_size << " bytes.";
                         }
@@ -496,6 +499,7 @@ void play_video(const std::map<std::string, std::string> &params) {
     }
 
     // Clean up
+    endwin();
     av_frame_free(&frame);
     av_packet_free(&packet);
     if (audio_device_id) {

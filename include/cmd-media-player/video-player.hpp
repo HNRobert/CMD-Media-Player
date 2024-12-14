@@ -15,6 +15,13 @@
 #include <cstring>
 #include <iostream>
 
+#include <ncurses.h>
+
+// Cancel the OK macro
+#ifdef OK
+#undef OK
+#endif
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -35,7 +42,7 @@ extern "C" {
 #include <unistd.h>
 #endif
 
-#define KEY_DOWN(VK_NONAME) ((GetAsyncKeyState(VK_NONAME) & 0x8000) ? 1 : 0)
+// #define KEY_DOWN(VK_NONAME) ((GetAsyncKeyState(VK_NONAME) & 0x8000) ? 1 : 0)
 void play_video(const std::map<std::string, std::string> &params);
 
 #endif /* video_player_hpp */

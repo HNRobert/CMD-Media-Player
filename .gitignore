@@ -1,5 +1,5 @@
 CMD-Media-Player.xcodeproj
-src/CMD-Media-Player.entitlements
+./src/src.entitlements
 .vscode
 .DS_Store
 
@@ -7,3 +7,4 @@ src/CMD-Media-Player.entitlements
 cmake-build-debug
 cmake-build-release
 build
+src.entitlements

@@ -17,15 +17,16 @@ include_directories(
     ${HOMEBREW_PREFIX}/opt/opencv/include/opencv4
     ${HOMEBREW_PREFIX}/opt/ffmpeg/include
     ${HOMEBREW_PREFIX}/opt/sdl2/include
+    ${HOMEBREW_PREFIX}/opt/ncurses/include
 )
-
 
 link_directories(
     ${HOMEBREW_PREFIX}/opt/opencv/lib
     ${HOMEBREW_PREFIX}/opt/ffmpeg/lib
     ${HOMEBREW_PREFIX}/opt/sdl2/lib
-    )
-    
+    ${HOMEBREW_PREFIX}/opt/ncurses/lib
+)
+
 add_executable(CMD-Media-Player
     src/basic-functions.cpp
     src/main.cpp
@@ -35,6 +36,7 @@ add_executable(CMD-Media-Player
 target_include_directories(CMD-Media-Player PUBLIC
     ${PROJECT_SOURCE_DIR}/include
 )
+
 message(${PROJECT_SOURCE_DIR}/include) 
 target_link_libraries(CMD-Media-Player
     avcodec
@@ -47,6 +49,7 @@ target_link_libraries(CMD-Media-Player
     opencv_videoio
     sdl2
     readline
+    ncurses
 )
 
 # Install the executable
@@ -58,8 +61,3 @@ install(FILES
     src/video-player.hpp
     DESTINATION include/CMD-Media-Player
 )
-
-# Add support for building both x86_64 and arm64 architectures
-if(APPLE)
-    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
-endif()
