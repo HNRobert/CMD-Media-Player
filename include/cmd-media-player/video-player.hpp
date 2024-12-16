@@ -8,13 +8,14 @@
 #ifndef video_player_hpp
 #define video_player_hpp
 
-#include <SDL2/SDL.h>
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <csignal>
 #include <iostream>
 
+#include <SDL2/SDL.h>
 #include <ncurses.h>
 
 // Cancel the OK macro

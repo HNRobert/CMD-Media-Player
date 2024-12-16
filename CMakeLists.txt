@@ -29,8 +29,8 @@ link_directories(
 
 add_executable(CMD-Media-Player
     src/basic-functions.cpp
-    src/main.cpp
     src/video-player.cpp
+    src/main.cpp
 )
 
 target_include_directories(CMD-Media-Player PUBLIC

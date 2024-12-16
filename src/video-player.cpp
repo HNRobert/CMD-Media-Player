@@ -16,22 +16,34 @@ struct AudioQueue {
     SDL_mutex *mutex;
 };
 
-const char *ASCII_SEQ_LONG = "@%#*+^=~-;:,'.` ";
+const char *ASCII_SEQ_LONGEST = "@%#*+^=~-;:,'.` ";
+const char *ASCII_SEQ_LONGER = "@%#*+=~-:,. ";
+const char *ASCII_SEQ_LONG = "@%#*+=-:. ";
 const char *ASCII_SEQ_SHORT = "@#*+-:. ";
+const char *ASCII_SEQ_SHORTER = "@#*-. ";
+const char *ASCII_SEQ_SHORTEST = "@+. ";
 
 int volume = SDL_MIX_MAXVOLUME;
 SDL_AudioSpec audio_spec;
 
 // ANSI escape sequence to move the cursor to the top-left corner and clear the screen
-void move_cursor_to_top_left(bool clear = false) {
-    printf("\033[H"); // Moves the cursor to (0, 0) and clears the screen
-    if (clear)
-        printf("\033[2J");
+void move_cursor_to_top_left(bool clear_all = false) {
+    if (clear_all) {
+        clear();
+    }
+    mvprintw(0, 0, "");
+
+    // Original code
+
+    // printf("\033[H"); // Moves the cursor to (0, 0) and clears the screen
+    // if (clear)
+    //     printf("\033[2J");
 }
 
 void add_empty_lines_for(std::string &combined_output, int count) {
     for (int i = 0; i < count; i++) {
-        combined_output += "\n\033[K"; // Return and clear the characters afterwords in this line
+        combined_output += "\n"; // Return and clear the characters afterwords in this line
+        // combined_output += "\n\033[K"; // Return and clear the characters afterwords in this line
     }
 }
 
@@ -55,9 +67,11 @@ std::string image_to_ascii_dy_contrast(const cv::Mat &image,
             const char asciiChar = asciiChars[(scaled_pixel * asciiLength) / 256];
             asciiImage += asciiChar;
         }
-        if (pre_space)
-            asciiImage += "\033[K";
-        asciiImage += '\n';
+        if (pre_space) {
+            asciiImage += '\n'; // Return and clear the characters afterwords in this line
+        } else {
+            // asciiImage += "\033[K"; // Return and clear the characters afterwords in this line
+        }
     }
 
     return asciiImage;
@@ -65,7 +79,6 @@ std::string image_to_ascii_dy_contrast(const cv::Mat &image,
 
 std::string image_to_ascii(const cv::Mat &image, int pre_space = 0,
                            const char *asciiChars = ASCII_SEQ_SHORT) {
-    // @%#*+=-:.
     unsigned long asciiLength = strlen(asciiChars);
     std::string asciiImage;
 
@@ -76,9 +89,11 @@ std::string image_to_ascii(const cv::Mat &image, int pre_space = 0,
             char asciiChar = asciiChars[(pixel * asciiLength) / 256];
             asciiImage += asciiChar;
         }
-        if (pre_space)
-            asciiImage += "\033[K";
-        asciiImage += '\n';
+        if (pre_space) {
+            asciiImage += '\n';
+        } else {
+            // asciiImage += "\033[K";
+        }
     }
 
     return asciiImage;
@@ -157,10 +172,10 @@ void audio_callback(void *userdata, Uint8 *stream, int len) {
     int copied = 0;
     while (copied < len && audio_queue->size > 0) {
         int to_copy = std::min(len - copied, audio_queue->size);
-        
+
         // Apply volume control
         SDL_MixAudioFormat(stream + copied, audio_queue->data, AUDIO_S16SYS, to_copy, volume);
-        
+
         audio_queue->size -= to_copy;
         memmove(audio_queue->data, audio_queue->data + to_copy, audio_queue->size);
         copied += to_copy;
@@ -177,6 +192,87 @@ const std::map<std::string, std::string> char_set_pairs = {
     {"S", ASCII_SEQ_SHORT},
     {"l", ASCII_SEQ_LONG},
     {"L", ASCII_SEQ_LONG}};
+
+// Global variable to handle Ctrl+C
+volatile bool quit = false;
+
+// Signal handler for Ctrl+C
+void handle_sigint(int sig) {
+    quit = true;
+}
+
+enum class UserAction {
+    None,
+    Quit,
+    KeyLeft,
+    KeyRight,
+    KeyUp,
+    KeyDown
+};
+
+class NCursesHandler {
+  private:
+    bool is_paused = false;
+    bool has_quitted = false;
+
+  public:
+    NCursesHandler() {
+        initscr();
+        cbreak();
+        noecho();
+        keypad(stdscr, TRUE);
+        nodelay(stdscr, TRUE);
+    }
+
+    ~NCursesHandler() {
+        cleanup();
+    }
+
+    void cleanup() {
+        if (!has_quitted) {
+            has_quitted = true;
+            endwin();
+        }
+    }
+
+    UserAction handle_space() {
+        nodelay(stdscr, FALSE);
+        printw("Paused. Press SPACE to resume.");
+        refresh();
+        UserAction res = handleInput();
+        nodelay(stdscr, TRUE);
+        return res;
+    }
+
+    UserAction handleInput() {
+        int ch = getch();
+        switch (ch) {
+            case ERR:
+                return UserAction::None;
+            case 27: // ESC key
+            case 3:  // Ctrl+C
+                return UserAction::Quit;
+            case ' ':
+                if (is_paused) {
+                    is_paused = false;
+                    return UserAction::None;
+                } else {
+                    is_paused = true;
+                    return handle_space();
+                }
+            case KEY_LEFT:
+                return UserAction::KeyLeft;
+            case KEY_RIGHT:
+                return UserAction::KeyRight;
+            case KEY_UP:
+                return UserAction::KeyUp;
+            case KEY_DOWN:
+                return UserAction::KeyDown;
+            default:
+                return UserAction::None;
+        }
+    }
+};
 
 void play_video(const std::map<std::string, std::string> &params) {
     std::string video_path;
@@ -292,7 +388,7 @@ void play_video(const std::map<std::string, std::string> &params) {
                 avcodec_free_context(&audio_codec_ctx);
                 print_error("Error: Could not open audio codec.");
             } else {
-                print_audio_stream_info(audio_stream, audio_codec_ctx);
+                // print_audio_stream_info(audio_stream, audio_codec_ctx);
                 if (SDL_Init(SDL_INIT_AUDIO) < 0) {
                     print_error("SDL_Init Error: ", SDL_GetError());
                 } else {
@@ -305,17 +401,17 @@ void play_video(const std::map<std::string, std::string> &params) {
                     wanted_spec.userdata = &audio_queue;
 
                     // int device_index = 1; // select_audio_device();
-                    list_audio_devices();
+                    // list_audio_devices();
                     audio_device_id = SDL_OpenAudioDevice(nullptr, 0, &wanted_spec, &spec, 0);
                     const char *device_name = SDL_GetAudioDeviceName(audio_device_id, 0);
                     if (audio_device_id == 0) {
                         print_error("SDL_OpenAudioDevice Error: ", SDL_GetError());
                     } else {
-                        std::cout << "Audio device opened successfully. Device ID: " << audio_device_id << std::endl;
-                        std::cout << "Using audio device: " << device_name << std::endl;
-                        std::cout << "Actual audio spec - freq: " << spec.freq
-                                  << ", format: " << SDL_AUDIO_BITSIZE(spec.format) << " bit"
-                                  << ", channels: " << (int)spec.channels << std::endl;
+                        // std::cout << "Audio device opened successfully. Device ID: " << audio_device_id << std::endl;
+                        // std::cout << "Using audio device: " << device_name << std::endl;
+                        // std::cout << "Actual audio spec - freq: " << spec.freq
+                        //           << ", format: " << SDL_AUDIO_BITSIZE(spec.format) << " bit"
+                        //           << ", channels: " << (int)spec.channels << std::endl;
                         swr_ctx = swr_alloc();
                         if (!swr_ctx) {
                             print_error("Error: Could not allocate SwrContext.");
@@ -330,11 +426,11 @@ void play_video(const std::map<std::string, std::string> &params) {
                                 print_error("Error: Could not initialize SwrContext.");
                                 swr_free(&swr_ctx);
                             } else {
-                                std::cout << "Audio resampling context initialized successfully." << std::endl;
+                                // std::cout << "Audio resampling context initialized successfully." << std::endl;
                             }
                         }
                         SDL_PauseAudioDevice(audio_device_id, 0);
-                        std::cout << "Audio device unpaused." << std::endl;
+                        // std::cout << "Audio device unpaused." << std::endl;
                     }
                 }
             }
@@ -358,12 +454,10 @@ void play_video(const std::map<std::string, std::string> &params) {
     int frame_delay = static_cast<int>(1000.0 / fps);
     int termWidth, termHeight, frameWidth, frameHeight, prevTermWidth = 0, prevTermHeight = 0, w_space_count = 0, h_line_count = 0;
 
-    // Initialize ncurses
-    initscr();
-    cbreak();
-    noecho();
-    keypad(stdscr, TRUE);
-    nodelay(stdscr, TRUE);
+    NCursesHandler ncursesHandler;
+
+    // Handle Ctrl+C
+    signal(SIGINT, handle_sigint);
 
     bool quit = false, term_size_changed = true;
     int volume = SDL_MIX_MAXVOLUME;
@@ -371,33 +465,24 @@ void play_video(const std::map<std::string, std::string> &params) {
     while (!quit && av_read_frame(format_ctx, packet) >= 0) {
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        int ch = getch();
-        if (ch != ERR) {
-            switch (ch) {
-                case 27: // ESC key
-                case 3:  // Ctrl+C
-                    quit = true;
-                    break;
-                case KEY_LEFT:
-                    // Handle left arrow key
-                    std::cout << "Left arrow key pressed" << std::endl;
-                    break;
-                case KEY_RIGHT:
-                    // Handle right arrow key
-                    std::cout << "Right arrow key pressed" << std::endl;
-                    break;
-                case KEY_UP:
-                    // Volume up
-                    volume = std::min(volume + SDL_MIX_MAXVOLUME / 10, SDL_MIX_MAXVOLUME);
-                    std::cout << "Volume increased to " << (volume * 100 / SDL_MIX_MAXVOLUME) << "%" << std::endl;
-                    break;
-                case KEY_DOWN:
-                    // Volume down
-                    volume = std::max(volume - SDL_MIX_MAXVOLUME / 10, 0);
-                    std::cout << "Volume decreased to " << (volume * 100 / SDL_MIX_MAXVOLUME) << "%" << std::endl;
-                    sleep(1);
-                    break;
-            }
+        switch (ncursesHandler.handleInput()) {
+            case UserAction::Quit:
+                quit = true;
+                break;
+            case UserAction::KeyLeft:
+                // ...existing code...
+                break;
+            case UserAction::KeyRight:
+                // ...existing code...
+                break;
+            case UserAction::KeyUp:
+                // ...existing code...
+                break;
+            case UserAction::KeyDown:
+                // ...existing code...
+                break;
+            default:
+                break;
         }
 
         if (packet->stream_index == video_stream_index) {
@@ -455,7 +540,8 @@ void play_video(const std::map<std::string, std::string> &params) {
 
                     // clear_screen();
                     move_cursor_to_top_left(term_size_changed);
-                    printf("%s", combined_output.c_str()); // Show the Frame
+                    printw("%s", combined_output.c_str()); // Show the Frame
+                    refresh();
 
                     // Frame rate control
                     auto end_time = std::chrono::high_resolution_clock::now();
@@ -498,8 +584,10 @@ void play_video(const std::map<std::string, std::string> &params) {
         av_packet_unref(packet);
     }
 
+    // Restore default Ctrl+C behavior
+    signal(SIGINT, SIG_DFL);
+
     // Clean up
-    endwin();
     av_frame_free(&frame);
     av_packet_free(&packet);
     if (audio_device_id) {
@@ -518,6 +606,8 @@ void play_video(const std::map<std::string, std::string> &params) {
     // Clean up audio queue
     SDL_DestroyMutex(audio_queue.mutex);
     delete[] audio_queue.data;
+
+    ncursesHandler.cleanup();
 
     if (!quit) {
         std::cout << "Playback completed! Press any key to continue...";
