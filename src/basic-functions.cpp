@@ -145,13 +145,13 @@ extern const std::string VERSION; // Declare the version variable
 void show_help(bool show_full) {
     std::cout << R"(
 Usage:
-  [command] [-v /path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] /
+  [command] [-m /path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] /
   [/path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] 
 
 )";
     if (show_full) {
         std::cout<< R"(Options:
-  -v /path/to/video    Specify the video file to play
+  -m /path/to/video    Specify the video file to play
   -st                  Use static contrast (default)
   -dy                  Use dynamic contrast 
                         Scaling the contrast dynamically 
@@ -173,20 +173,20 @@ Additional commands:
   save               Save the default options to a configuration file
 
 Examples:
-  play -v video.mp4 -dy -l
+  play -m video.mp4 -dy -l
       Play 'video.mp4' using dynamic contrast and long character set 
       for ASCII art.
-  play -v 'a video.mp4' -c "@#&*+=-:. "
+  play -m 'a video.mp4' -c "@#&*+=-:. "
       Play 'a video.mp4' with a custom character sequence for ASCII art.
       (add quotation marks on both sides if the path contains space)
       (if quotation marks included in the seq, use backslash to escape)
-  set -v 'default.mp4'
+  set -m 'default.mp4'
       Set a default video path to 'default.mp4'
       for future playback commands.
   set -dy
       Set dynamic contrast as the default mode 
       for future playback commands.
-  reset -v
+  reset -m
       Reset the default video path to the initial state.
 
 Version: )" << VERSION << R"(
