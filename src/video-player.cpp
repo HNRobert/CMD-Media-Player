@@ -112,7 +112,7 @@ std::string image_to_ascii(const cv::Mat &image, int pre_space = 0,
 std::string generate_ascii_image(const cv::Mat &image,
                                  int pre_space,
                                  const char *asciiChars,
-                                 std::string (*ascii_func)(const cv::Mat &, int, const char *)) {
+                                 std::function<std::string(const cv::Mat &, int, const char *)> ascii_func) {
     // Call the pointer to the function to switch between generating methods
     return ascii_func(image, pre_space, asciiChars);
 }
@@ -173,24 +173,6 @@ void print_audio_stream_info(AVStream *audio_stream, AVCodecContext *audio_codec
     std::cout << "  Codec Tag: 0x" << std::hex << std::setw(8) << std::setfill('0') << audio_stream->codecpar->codec_tag << std::dec << std::endl;
 
     std::cout << "======================================\n\n";
-}
-
-void audio_callback(void *userdata, Uint8 *stream, int len) {
-    auto audio_queue = static_cast<AudioQueue *>(userdata);
-    SDL_memset(stream, 0, len);
-    SDL_LockMutex(audio_queue->mutex);
-    int copied = 0;
-    while (copied < len && audio_queue->size > 0) {
-        int to_copy = std::min(len - copied, audio_queue->size);
-
-        // Apply volume control
-        SDL_MixAudioFormat(stream + copied, audio_queue->data, AUDIO_S16SYS, to_copy, volume);
-
-        audio_queue->size -= to_copy;
-        memmove(audio_queue->data, audio_queue->data + to_copy, audio_queue->size);
-        copied += to_copy;
-    }
-    SDL_UnlockMutex(audio_queue->mutex);
 }
 
 const std::map<std::string, std::function<std::string(const cv::Mat &, int, const char *)>> param_func_pair = {
@@ -255,8 +237,7 @@ class NCursesHandler {
     }
 
     UserAction handleInput() {
-        int ch = getch();
-        switch (ch) {
+        switch (getch()) {
             case ERR:
                 return UserAction::None;
             case 27: // ESC key
@@ -312,6 +293,307 @@ void seek_video(AVFormatContext *format_ctx, AVCodecContext *video_codec_ctx,
         }
     }
 }
+
+class AudioPlayer {
+  public:
+    AudioPlayer() : audio_codec_ctx(nullptr), audio_device_id(0), swr_ctx(nullptr) {
+        audio_queue.data = new uint8_t[AUDIO_QUEUE_SIZE];
+        audio_queue.size = 0;
+        audio_queue.mutex = SDL_CreateMutex();
+    }
+
+    ~AudioPlayer() {
+        cleanup();
+    }
+
+    bool initialize(AVFormatContext *format_ctx, int &audio_stream_index) {
+        // Initialize the audio decoder
+        AVStream *audio_stream = nullptr;
+        // Find the audio stream
+        for (int i = 0; i < format_ctx->nb_streams; ++i) {
+            AVStream *stream = format_ctx->streams[i];
+            if (stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO && audio_stream_index < 0) {
+                audio_stream = stream;
+                audio_stream_index = i;
+                break;
+            }
+        }
+
+        if (!audio_stream) {
+            // Audio stream not found
+            return false;
+        }
+
+        const AVCodec *audio_codec = avcodec_find_decoder(audio_stream->codecpar->codec_id);
+        if (!audio_codec) {
+            // Codec not found
+            return false;
+        }
+
+        audio_codec_ctx = avcodec_alloc_context3(audio_codec);
+        if (avcodec_parameters_to_context(audio_codec_ctx, audio_stream->codecpar) < 0) {
+            // Copying audio parameters failed
+            return false;
+        }
+
+        if (avcodec_open2(audio_codec_ctx, audio_codec, nullptr) < 0) {
+            // Cannot open audio codec
+            return false;
+        }
+
+        if (SDL_Init(SDL_INIT_AUDIO) < 0) {
+            // SDL Initialization failed
+            return false;
+        }
+
+        SDL_AudioSpec wanted_spec;
+        wanted_spec.freq = audio_codec_ctx->sample_rate;
+        wanted_spec.format = AUDIO_S16SYS;
+        wanted_spec.channels = audio_codec_ctx->ch_layout.nb_channels;
+        wanted_spec.silence = 0;
+        wanted_spec.samples = 1024;
+        wanted_spec.callback = [](void *userdata, Uint8 *stream, int len) {
+            static_cast<AudioPlayer *>(userdata)->audio_callback(userdata, stream, len);
+        };
+        wanted_spec.userdata = this;
+
+        audio_device_id = SDL_OpenAudioDevice(nullptr, 0, &wanted_spec, &spec, 0);
+        if (audio_device_id == 0) {
+            // Cannot open audio device
+            return false;
+        }
+
+        swr_ctx = swr_alloc();
+        if (!swr_ctx) {
+            // Cannot allocate SwrContext
+            return false;
+        }
+
+        AVChannelLayout out_ch_layout = AV_CHANNEL_LAYOUT_STEREO;
+        if (swr_alloc_set_opts2(&swr_ctx, &out_ch_layout, AV_SAMPLE_FMT_S16, spec.freq,
+                                &audio_codec_ctx->ch_layout, audio_codec_ctx->sample_fmt, audio_codec_ctx->sample_rate,
+                                0, nullptr) < 0) {
+            // Cannot set SwrContext options
+            return false;
+        }
+
+        if (swr_init(swr_ctx) < 0) {
+            // Cannot initialize SwrContext
+            return false;
+        }
+
+        return true;
+    }
+
+    void start() {
+        SDL_PauseAudioDevice(audio_device_id, 0);
+    }
+
+    void handle_packet(AVPacket *packet) {
+        if (avcodec_send_packet(audio_codec_ctx, packet) >= 0) {
+            AVFrame *frame = av_frame_alloc();
+            while (avcodec_receive_frame(audio_codec_ctx, frame) >= 0) {
+                // Handle audio frame
+                int out_samples = (int)av_rescale_rnd(swr_get_delay(swr_ctx, audio_codec_ctx->sample_rate) + frame->nb_samples,
+                                                      spec.freq, audio_codec_ctx->sample_rate, AV_ROUND_UP);
+                uint8_t *out_buffer;
+                av_samples_alloc(&out_buffer, nullptr, spec.channels, out_samples, AV_SAMPLE_FMT_S16, 0);
+                int samples_out = swr_convert(swr_ctx, &out_buffer, out_samples,
+                                              (const uint8_t **)frame->data, frame->nb_samples);
+                if (samples_out > 0) {
+                    int buffer_size = av_samples_get_buffer_size(nullptr, spec.channels, samples_out, AV_SAMPLE_FMT_S16, 1);
+                    SDL_LockMutex(audio_queue.mutex);
+                    if (audio_queue.size + buffer_size < AUDIO_QUEUE_SIZE) {
+                        memcpy(audio_queue.data + audio_queue.size, out_buffer, buffer_size);
+                        audio_queue.size += buffer_size;
+                    }
+                    SDL_UnlockMutex(audio_queue.mutex);
+                }
+                av_freep(&out_buffer);
+            }
+            av_frame_free(&frame);
+        }
+    }
+
+    void cleanup() {
+        if (audio_device_id) {
+            SDL_CloseAudioDevice(audio_device_id);
+            audio_device_id = 0;
+        }
+        if (swr_ctx) {
+            swr_free(&swr_ctx);
+            swr_ctx = nullptr;
+        }
+        if (audio_codec_ctx) {
+            avcodec_free_context(&audio_codec_ctx);
+            audio_codec_ctx = nullptr;
+        }
+        SDL_DestroyMutex(audio_queue.mutex);
+        delete[] audio_queue.data;
+        SDL_Quit();
+    }
+
+  private:
+    void audio_callback(void *userdata, Uint8 *stream, int len) {
+        auto audio_queue = static_cast<AudioQueue *>(userdata);
+        SDL_memset(stream, 0, len);
+        SDL_LockMutex(audio_queue->mutex);
+        int copied = 0;
+        while (copied < len && audio_queue->size > 0) {
+            int to_copy = std::min(len - copied, audio_queue->size);
+
+            // Apply volume control
+            SDL_MixAudioFormat(stream + copied, audio_queue->data, AUDIO_S16SYS, to_copy, volume);
+
+            audio_queue->size -= to_copy;
+            memmove(audio_queue->data, audio_queue->data + to_copy, audio_queue->size);
+            copied += to_copy;
+        }
+        SDL_UnlockMutex(audio_queue->mutex);
+    }
+
+    AudioQueue audio_queue;
+    SDL_AudioSpec spec;
+    AVCodecContext *audio_codec_ctx;
+    SDL_AudioDeviceID audio_device_id;
+    SwrContext *swr_ctx;
+};
+
+class VideoPlayer {
+  public:
+    VideoPlayer() : video_codec_ctx(nullptr), prevTermWidth(0), prevTermHeight(0), term_size_changed(true), generate_ascii_func(image_to_ascii) {}
+
+    ~VideoPlayer() {
+        cleanup();
+    }
+
+    int frame_delay;
+    AVCodecContext *video_codec_ctx;
+    std::function<std::string(const cv::Mat &, int, const char *)> generate_ascii_func;
+
+    bool initialize(AVFormatContext *format_ctx, int &video_stream_index) {
+        // Initialize the video decoder
+        AVStream *video_stream = nullptr;
+        for (int i = 0; i < format_ctx->nb_streams; ++i) {
+            AVStream *stream = format_ctx->streams[i];
+            if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && video_stream_index < 0) {
+                video_stream = stream;
+                video_stream_index = i;
+                break;
+            }
+        }
+
+        if (!video_stream) {
+            // Video stream not found
+            return false;
+        }
+
+        const AVCodec *video_codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
+        if (!video_codec) {
+            // Video codec not found
+            return false;
+        }
+
+        video_codec_ctx = avcodec_alloc_context3(video_codec);
+        if (avcodec_parameters_to_context(video_codec_ctx, video_stream->codecpar) < 0) {
+            // Failed to copy video parameters
+            return false;
+        }
+
+        if (avcodec_open2(video_codec_ctx, video_codec, nullptr) < 0) {
+            // Failed to open video codec
+            return false;
+        }
+
+        return true;
+    }
+
+    void handle_packet(AVPacket *packet) {
+        if (avcodec_send_packet(video_codec_ctx, packet) >= 0) {
+            AVFrame *frame = av_frame_alloc();
+            while (avcodec_receive_frame(video_codec_ctx, frame) >= 0) {
+                // Handle video frame
+                render_frame(frame, current_time, total_duration);
+            }
+            av_frame_free(&frame);
+        }
+    }
+
+    void render_frame(AVFrame *frame, int64_t &current_time, int64_t total_duration) {
+        // Convert AVFrame to grayscale image
+        cv::Mat grayFrame(frame->height, frame->width, CV_8UC1);
+        for (int y = 0; y < frame->height; ++y) {
+            memcpy(grayFrame.ptr(y), frame->data[0] + y * frame->linesize[0], frame->width);
+        }
+
+        // Adjust terminal size and frame dimensions
+        get_terminal_size(termWidth, termHeight);
+        termHeight -= 2;
+        if (termWidth != prevTermWidth || termHeight != prevTermHeight) {
+            prevTermWidth = termWidth;
+            prevTermHeight = termHeight;
+            term_size_changed = true;
+        } else {
+            term_size_changed = false;
+        }
+
+        // ...existing code for resizing, ASCII conversion, and display...
+        // Resize the frame to fit the terminal dimensions
+        if (term_size_changed) {
+            double aspect_ratio = static_cast<double>(frame->width) / frame->height;
+            frameWidth = termWidth;
+            frameHeight = static_cast<int>(frameWidth / aspect_ratio);
+            if (frameHeight > termHeight) {
+                frameHeight = termHeight;
+                frameWidth = static_cast<int>(frameHeight * aspect_ratio);
+            }
+            w_space_count = (termWidth - frameWidth) / 2;
+            h_line_count = (termHeight - frameHeight) / 2;
+        }
+
+        // Resize the frame to fit the terminal dimensions
+        cv::Mat resizedFrame;
+        cv::resize(grayFrame, resizedFrame, cv::Size(frameWidth, frameHeight));
+
+        // Convert the resized frame to ASCII
+        std::string asciiImage = generate_ascii_image(resizedFrame, w_space_count, ascii_char_sets[current_char_set_index].c_str(), generate_ascii_func);
+
+        // Move cursor to top-left and clear the screen if needed
+        move_cursor_to_top_left(term_size_changed);
+
+        // Print the ASCII image
+        printw("%s", asciiImage.c_str());
+
+        // Print the progress bar and time
+        double progress = static_cast<double>(current_time) / total_duration;
+        std::string progressBar = create_progress_bar(progress, termWidth);
+        std::string timeInfo = format_time(current_time) + " / " + format_time(total_duration);
+        mvprintw(termHeight, 0, "%s", progressBar.c_str());
+        mvprintw(termHeight + 1, 0, "%s", timeInfo.c_str());
+
+        // Refresh the screen
+        refresh();
+
+        // Control frame rate
+        std::this_thread::sleep_for(std::chrono::milliseconds(frame_delay));
+    }
+
+    void cleanup() {
+        if (video_codec_ctx) {
+            avcodec_free_context(&video_codec_ctx);
+            video_codec_ctx = nullptr;
+        }
+    }
+
+  private:
+    int termWidth, termHeight;
+    int prevTermWidth, prevTermHeight;
+    bool term_size_changed;
+    int frameWidth, frameHeight;
+    int w_space_count, h_line_count;
+    int64_t current_time;
+    int64_t total_duration;
+};
 
 void play_video(const std::map<std::string, std::string> &params) {
     std::string media_path;
@@ -379,136 +661,30 @@ void play_video(const std::map<std::string, std::string> &params) {
         return;
     }
 
-    AVCodecContext *video_codec_ctx = nullptr;
-    AVCodecContext *audio_codec_ctx = nullptr;
-    AVStream *video_stream = nullptr;
-    AVStream *audio_stream = nullptr;
-    int video_stream_index = -1;
+    AudioPlayer audioPlayer;
+    VideoPlayer videoPlayer;
+
     int audio_stream_index = -1;
+    int video_stream_index = -1;
 
-    // Find video and audio streams
-    for (int i = 0; i < format_ctx->nb_streams; ++i) {
-        AVStream *stream = format_ctx->streams[i];
-        if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && video_stream_index < 0) {
-            video_stream = stream;
-            video_stream_index = i;
-        } else if (stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO && audio_stream_index < 0) {
-            audio_stream = stream;
-            audio_stream_index = i;
-        }
-    }
+    bool has_audio = audioPlayer.initialize(format_ctx, audio_stream_index);
+    bool has_video = videoPlayer.initialize(format_ctx, video_stream_index);
 
-    if (!video_stream) {
-        avformat_close_input(&format_ctx);
-        if (debug_mode)
-            print_error("Error: Could not find video stream.");
-    }
-
-    // Initialize video codec
-    const AVCodec *video_codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
-    if (!video_codec) {
-        avformat_close_input(&format_ctx);
-        if (debug_mode)
-            print_error("Error: Could not find video codec.");
-    }
-
-    video_codec_ctx = avcodec_alloc_context3(video_codec);
-    if (avcodec_parameters_to_context(video_codec_ctx, video_stream->codecpar) < 0) {
-        avformat_close_input(&format_ctx);
-        if (debug_mode)
-            print_error("Error: Could not copy video codec parameters.");
-    } else if (avcodec_open2(video_codec_ctx, video_codec, nullptr) < 0) {
-        avcodec_free_context(&video_codec_ctx);
-        avformat_close_input(&format_ctx);
-        if (debug_mode)
-            print_error("Error: Could not open video codec.");
-    } else {
-        has_visual = true;
-    }
-
-    // Initialize audio queue
-    AudioQueue audio_queue{};
-    audio_queue.data = new uint8_t[AUDIO_QUEUE_SIZE];
-    audio_queue.size = 0;
-    audio_queue.mutex = SDL_CreateMutex();
-
-    // Initialize SDL audio if audio stream exists
-    SDL_AudioSpec wanted_spec, spec;
-    SDL_AudioDeviceID audio_device_id = 0;
-    SwrContext *swr_ctx = nullptr;
-    if (audio_stream) {
-        const AVCodec *audio_codec = avcodec_find_decoder(audio_stream->codecpar->codec_id);
-        if (!audio_codec && debug_mode)
-            print_error("Error: Could not find audio codec.");
-        audio_codec_ctx = avcodec_alloc_context3(audio_codec);
-        if (avcodec_parameters_to_context(audio_codec_ctx, audio_stream->codecpar) < 0) {
-            if (debug_mode)
-                print_error("Error: Could not copy audio codec parameters.");
-        }
-        if (avcodec_open2(audio_codec_ctx, audio_codec, nullptr) < 0) {
-            avcodec_free_context(&audio_codec_ctx);
-            if (debug_mode)
-                print_error("Error: Could not open audio codec.");
-        } else if (SDL_Init(SDL_INIT_AUDIO) < 0) {
-            if (debug_mode)
-                print_error("SDL_Init Error: ", SDL_GetError());
-        } else {
-            has_aural = true;
-        }
-
-        wanted_spec.freq = audio_codec_ctx->sample_rate;
-        wanted_spec.format = AUDIO_S16SYS;
-        wanted_spec.channels = audio_codec_ctx->ch_layout.nb_channels;
-        wanted_spec.silence = 0;
-        wanted_spec.samples = 1024;
-        wanted_spec.callback = audio_callback;
-        wanted_spec.userdata = &audio_queue;
-
-        audio_device_id = SDL_OpenAudioDevice(nullptr, 0, &wanted_spec, &spec, 0);
-        if (audio_device_id == 0 && debug_mode) {
-            print_error("SDL_OpenAudioDevice Error: ", SDL_GetError());
-        }
-
-        swr_ctx = swr_alloc();
-        if (!swr_ctx && debug_mode) {
-            print_error("Error: Could not allocate SwrContext.");
-        }
-
-        AVChannelLayout out_ch_layout = AV_CHANNEL_LAYOUT_STEREO;
-        if (swr_alloc_set_opts2(&swr_ctx, &out_ch_layout, AV_SAMPLE_FMT_S16, spec.freq,
-                                &audio_codec_ctx->ch_layout, audio_codec_ctx->sample_fmt, audio_codec_ctx->sample_rate,
-                                0, nullptr) < 0) {
-            print_error("Error: Could not set SwrContext options.");
-            swr_free(&swr_ctx);
-            return;
-        }
-
-        if (swr_init(swr_ctx) < 0) {
-            print_error("Error: Could not initialize SwrContext.");
-            swr_free(&swr_ctx);
-            return;
-        }
-
-        SDL_PauseAudioDevice(audio_device_id, 0);
-    } else {
-        if (debug_mode)
-            print_error("No audio stream found.");
+    if (has_audio) {
+        audioPlayer.start();
     }
 
     AVPacket *packet = av_packet_alloc();
-    AVFrame *frame = av_frame_alloc();
-    if (!packet || !frame) {
-        if (debug_mode)
-            print_error("Error: Could not allocate packet or frame.");
-        // Clean up and return
-        // ... (cleanup code)
+    if (!packet) {
+        // 错误处理
         return;
     }
+
     int64_t total_duration = format_ctx->duration / AV_TIME_BASE;
     int64_t current_time = 0;
 
-    double fps = av_q2d(video_stream->avg_frame_rate);
-    int frame_delay = static_cast<int>(1000.0 / fps);
+    double fps = av_q2d(format_ctx->streams[video_stream_index]->avg_frame_rate);
+    videoPlayer.frame_delay = static_cast<int>(1000.0 / fps);
     int termWidth, termHeight, frameWidth, frameHeight, prevTermWidth = 0, prevTermHeight = 0, w_space_count = 0, h_line_count = 0;
 
     NCursesHandler ncursesHandler;
@@ -529,10 +705,10 @@ void play_video(const std::map<std::string, std::string> &params) {
                 quit = true;
                 break;
             case UserAction::KeyLeft:
-                seek_video(format_ctx, video_codec_ctx, video_stream_index, current_time, total_duration, -seek_seconds, debug_mode);
+                seek_video(format_ctx, videoPlayer.video_codec_ctx, video_stream_index, current_time, total_duration, -seek_seconds, debug_mode);
                 break;
             case UserAction::KeyRight:
-                seek_video(format_ctx, video_codec_ctx, video_stream_index, current_time, total_duration, seek_seconds, debug_mode);
+                seek_video(format_ctx, videoPlayer.video_codec_ctx, video_stream_index, current_time, total_duration, seek_seconds, debug_mode);
                 break;
             case UserAction::KeyUp:
                 if (current_char_set_index < ascii_char_sets.size() - 1) {
@@ -548,97 +724,10 @@ void play_video(const std::map<std::string, std::string> &params) {
                 break;
         }
 
-        if (packet->stream_index == video_stream_index && avcodec_send_packet(video_codec_ctx, packet) >= 0) {
-            while (avcodec_receive_frame(video_codec_ctx, frame) >= 0) {
-                // Convert to grayscale image
-                cv::Mat grayFrame(frame->height, frame->width, CV_8UC1);
-                for (int y = 0; y < frame->height; ++y) {
-                    for (int x = 0; x < frame->width; ++x) {
-                        grayFrame.at<uchar>(y, x) = frame->data[0][y * frame->linesize[0] + x];
-                    }
-                }
-                // Get terminal size and resize frame
-                get_terminal_size(termWidth, termHeight);
-                termHeight -= 2;
-                if (termWidth != prevTermWidth || termHeight != prevTermHeight) {
-                    prevTermWidth = termWidth;
-                    prevTermHeight = termHeight;
-                    term_size_changed = true;
-
-                } else
-                    term_size_changed = false;
-                frameWidth = termWidth;
-                frameHeight = (grayFrame.rows * frameWidth) / grayFrame.cols / 2;
-                w_space_count = 0;
-                h_line_count = (termHeight - frameHeight) / 2;
-                if (frameHeight > termHeight) {
-                    frameHeight = termHeight;
-                    frameWidth = (grayFrame.cols * frameHeight * 2) / grayFrame.rows;
-                    w_space_count = (termWidth - frameWidth) / 2;
-                    h_line_count = 0;
-                }
-                cv::resize(grayFrame, grayFrame, cv::Size(frameWidth, frameHeight));
-
-                // Convert image to ASCII and display
-                const char *frame_chars = ascii_char_sets[current_char_set_index].c_str();
-                std::string asciiArt = generate_ascii_func(grayFrame,
-                                                           w_space_count,
-                                                           frame_chars);
-                current_time = av_rescale_q(packet->pts, video_stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE;
-
-                // Create progress bar
-                std::string time_played = format_time(current_time);
-                std::string total_time = format_time(total_duration);
-                int progress_width = termWidth - (int)time_played.length() - (int)total_time.length() - 2; // 2 for /
-                double progress = static_cast<double>(current_time) / total_duration;
-                std::string progress_bar = create_progress_bar(progress, progress_width);
-
-                // Combine ASCII art with progress bar
-                std::string combined_output;
-                add_empty_lines_for(combined_output, h_line_count);
-                combined_output += asciiArt;
-                add_empty_lines_for(combined_output,
-                                    termHeight - frameHeight - h_line_count);
-                combined_output += time_played + "\\" + progress_bar + "/" + total_time + "\n";
-
-                // clear_screen();
-                move_cursor_to_top_left(term_size_changed);
-                printw("%s", combined_output.c_str()); // Show the Frame
-                refresh();
-
-                // Frame rate control
-                auto end_time = std::chrono::high_resolution_clock::now();
-                auto processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-                int remaining_delay = frame_delay - static_cast<int>(processing_time.count()) - 4;
-                if (remaining_delay > 0) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(remaining_delay));
-                }
-            }
-        } else if (packet->stream_index == audio_stream_index && audio_codec_ctx && swr_ctx && avcodec_send_packet(audio_codec_ctx, packet) >= 0) {
-            while (avcodec_receive_frame(audio_codec_ctx, frame) >= 0) {
-                int out_samples = (int)av_rescale_rnd(swr_get_delay(swr_ctx, audio_codec_ctx->sample_rate) + frame->nb_samples,
-                                                      spec.freq, audio_codec_ctx->sample_rate, AV_ROUND_UP);
-                uint8_t *out_buffer;
-                av_samples_alloc(&out_buffer, nullptr, spec.channels, out_samples, AV_SAMPLE_FMT_S16, 0);
-                int samples_out = swr_convert(swr_ctx, &out_buffer, out_samples,
-                                              (const uint8_t **)frame->data, frame->nb_samples);
-                if (samples_out > 0) {
-                    int buffer_size = av_samples_get_buffer_size(nullptr, spec.channels, samples_out, AV_SAMPLE_FMT_S16, 1);
-                    SDL_LockMutex(audio_queue.mutex);
-                    if (audio_queue.size + buffer_size < AUDIO_QUEUE_SIZE) {
-                        // Apply volume control
-                        memcpy(audio_queue.data + audio_queue.size, out_buffer, buffer_size);
-                        // SDL_MixAudioFormat(audio_queue.data + audio_queue.size, out_buffer, AUDIO_S16SYS, buffer_size, volume);
-                        audio_queue.size += buffer_size;
-                    } else {
-                        // std::cout << "Audio queue full. Discarding " << buffer_size << " bytes.";
-                    }
-                    SDL_UnlockMutex(audio_queue.mutex);
-                } else {
-                    // std::cout << "No samples output from swr_convert";
-                }
-                av_freep(&out_buffer);
-            }
+        if (packet->stream_index == video_stream_index) {
+            videoPlayer.handle_packet(packet);
+        } else if (packet->stream_index == audio_stream_index) {
+            audioPlayer.handle_packet(packet);
         }
 
         av_packet_unref(packet);
@@ -648,24 +737,10 @@ void play_video(const std::map<std::string, std::string> &params) {
     signal(SIGINT, SIG_DFL);
 
     // Clean up
-    av_frame_free(&frame);
+    audioPlayer.cleanup();
+    videoPlayer.cleanup();
     av_packet_free(&packet);
-    if (audio_device_id) {
-        SDL_CloseAudioDevice(audio_device_id);
-    }
-    SDL_Quit();
-    if (swr_ctx) {
-        swr_free(&swr_ctx);
-    }
-    avcodec_free_context(&video_codec_ctx);
-    if (audio_codec_ctx) {
-        avcodec_free_context(&audio_codec_ctx);
-    }
     avformat_close_input(&format_ctx);
-
-    // Clean up audio queue
-    SDL_DestroyMutex(audio_queue.mutex);
-    delete[] audio_queue.data;
 
     ncursesHandler.cleanup();
 

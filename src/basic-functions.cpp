@@ -54,7 +54,7 @@ std::string get_system_type() {
 }
 
 std::string get_config_file_path() {
-    const char* home_dir = getenv("HOME");
+    const char *home_dir = getenv("HOME");
     if (!home_dir) {
         home_dir = ".";
     }
@@ -81,7 +81,7 @@ void save_default_options_to_file(std::map<std::string, std::string> &default_op
     }
 
     // Write in the default oftion
-    for (const auto& option : default_options) {
+    for (const auto &option : default_options) {
         config_file << option.first << "=" << option.second << std::endl;
     }
 
@@ -91,7 +91,7 @@ void save_default_options_to_file(std::map<std::string, std::string> &default_op
 
 void load_default_options_from_file(std::map<std::string, std::string> &default_options) {
     std::string config_file_path = get_config_file_path();
-    
+
     if (!std::filesystem::exists(config_file_path)) {
         std::cout << "No config file found. Skipping loading defaults." << std::endl;
         return;
@@ -112,7 +112,7 @@ void load_default_options_from_file(std::map<std::string, std::string> &default_
             default_options[key] = value;
         }
     }
-    
+
     config_file.close();
     // std::cout << "Default options loaded from " << config_file_path << std::endl;
 }
@@ -135,7 +135,7 @@ void show_interface() {
 }
 
 void show_help_prompt() {
-    std::cout<<R"(
+    std::cout << R"(
 -------- Type "help" and return for help --------
 )";
 }
@@ -150,7 +150,7 @@ Usage:
 
 )";
     if (show_full) {
-        std::cout<< R"(Options:
+        std::cout << R"(Options:
   -m /path/to/video    Specify the video file to play
   -st                  Use static contrast (default)
   -dy                  Use dynamic contrast 
@@ -189,7 +189,8 @@ Examples:
   reset -m
       Reset the default video path to the initial state.
 
-Version: )" << VERSION << R"(
+Version: )" << VERSION
+                  << R"(
 Homepage: https://github.com/HNRobert/CMD-Media-Player
 
 )";

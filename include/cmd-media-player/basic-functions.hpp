@@ -8,15 +8,15 @@
 #ifndef basic_functions_hpp
 #define basic_functions_hpp
 
-#include <iostream>
-#include <map>
-#include <vector>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
+#include <map>
 #include <readline/history.h>
 #include <readline/readline.h>
+#include <vector>
 
 struct cmdOptions {
     std::vector<std::string> arguments;

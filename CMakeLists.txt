@@ -37,7 +37,7 @@ target_include_directories(CMD-Media-Player PUBLIC
     ${PROJECT_SOURCE_DIR}/include
 )
 
-message(${PROJECT_SOURCE_DIR}/include) 
+# target_link_libraries expects library names or paths
 target_link_libraries(CMD-Media-Player
     avcodec
     avformat
@@ -57,7 +57,7 @@ install(TARGETS CMD-Media-Player DESTINATION bin)
 
 # Install header files
 install(FILES
-    src/basic-functions.hpp
-    src/video-player.hpp
+    include/cmd-media-player/basic-functions.hpp
+    include/cmd-media-player/video-player.hpp
     DESTINATION include/CMD-Media-Player
 )
