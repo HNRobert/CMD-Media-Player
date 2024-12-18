@@ -417,6 +417,7 @@ class AudioPlayer {
 
     void cleanup() {
         if (audio_device_id) {
+            SDL_PauseAudioDevice(audio_device_id, 1); // Pause the audio device before closing
             SDL_CloseAudioDevice(audio_device_id);
             audio_device_id = 0;
         }
@@ -446,22 +447,9 @@ class AudioPlayer {
         if (SDL_WasInit(SDL_INIT_EVENTS) & SDL_INIT_EVENTS) {
             SDL_QuitSubSystem(SDL_INIT_EVENTS);
         }
-        if (SDL_WasInit(SDL_INIT_JOYSTICK) & SDL_INIT_JOYSTICK) {
-            SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
+        if (SDL_WasInit(SDL_INIT_EVERYTHING) & SDL_INIT_EVERYTHING) {
+            SDL_Quit();
         }
-        if (SDL_WasInit(SDL_INIT_HAPTIC) & SDL_INIT_HAPTIC) {
-            SDL_QuitSubSystem(SDL_INIT_HAPTIC);
-        }
-        if (SDL_WasInit(SDL_INIT_GAMECONTROLLER) & SDL_INIT_GAMECONTROLLER) {
-            SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER);
-        }
-        if (SDL_WasInit(SDL_INIT_SENSOR) & SDL_INIT_SENSOR) {
-            SDL_QuitSubSystem(SDL_INIT_SENSOR);
-        }
-        if (SDL_WasInit(SDL_INIT_NOPARACHUTE) & SDL_INIT_NOPARACHUTE) {
-            SDL_QuitSubSystem(SDL_INIT_NOPARACHUTE);
-        }
-        SDL_Quit();
     }
 
   private:
@@ -497,7 +485,8 @@ class VideoPlayer {
     ~VideoPlayer() {
         cleanup();
     }
-
+    Uint32 frame_start;
+    int frame_time;
     int frame_delay;
     AVCodecContext *video_codec_ctx;
     NCursesHandler *ncurses_handler;
@@ -553,7 +542,6 @@ class VideoPlayer {
     }
 
     void render_frame(AVFrame *frame, int64_t &current_time, int64_t total_duration) {
-        auto start_time = std::chrono::high_resolution_clock::now();
         // Convert to grayscale image
         cv::Mat grayFrame(frame->height, frame->width, CV_8UC1);
         for (int y = 0; y < frame->height; ++y) {
@@ -611,13 +599,13 @@ class VideoPlayer {
         refresh();
 
         // Frame rate control
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        int remaining_delay = frame_delay - static_cast<int>(processing_time.count()) - 8;
-        if (remaining_delay > 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(remaining_delay));
-            std::this_thread::yield();
+        frame_time = SDL_GetTicks() - frame_start;
+        printw("Frame time: %d ms, Frame delay: %d ms", frame_time, frame_delay);
+        refresh();
+        if (frame_time < frame_delay + 4) {
+            SDL_Delay(frame_delay - frame_time - 4);
         }
+
     }
 
     void cleanup() {
@@ -740,6 +728,8 @@ void play_video(const std::map<std::string, std::string> &params) {
     int seek_seconds = 3; // Number of seconds to seek
 
     while (!quit && av_read_frame(format_ctx, packet) >= 0) {
+        videoPlayer.frame_start = SDL_GetTicks();
+
         switch (ncursesHandler.handleInput()) {
             case UserAction::Quit:
                 quit = true;
