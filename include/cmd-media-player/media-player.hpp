@@ -101,6 +101,7 @@ class NCursesHandler {
   private:
     bool is_paused = false;
     bool has_quitted = false;
+    int termWidth, termHeight;
 
   public:
     NCursesHandler() {
@@ -124,8 +125,6 @@ class NCursesHandler {
 
     UserAction handle_space() {
         nodelay(stdscr, FALSE);
-        printw("Paused. Press SPACE to resume.");
-        refresh();
         UserAction res = handleInput();
         nodelay(stdscr, TRUE);
         return res;
@@ -139,11 +138,15 @@ class NCursesHandler {
             case 3:  // Ctrl+C
                 return UserAction::Quit;
             case ' ':
+                get_terminal_size(termWidth, termHeight);
+                mvprintw(termHeight - 1, termWidth - 1, is_paused ? "▶" : "⏸");
                 if (is_paused) {
                     is_paused = false;
+                    // printw("▶");
                     return UserAction::None;
                 } else {
                     is_paused = true;
+                    // printw("⏸");
                     return handle_space();
                 }
             case KEY_LEFT:
@@ -349,21 +352,26 @@ class AudioPlayer {
 
   private:
     void audio_callback(void *userdata, Uint8 *stream, int len) {
-        auto audio_queue = static_cast<AudioQueue *>(userdata);
+        // Correctly cast userdata to AudioPlayer*
+        auto player = static_cast<AudioPlayer *>(userdata);
+        auto &audio_queue = player->audio_queue;
+
         SDL_memset(stream, 0, len);
-        SDL_LockMutex(audio_queue->mutex);
+        SDL_LockMutex(audio_queue.mutex);
+
         int copied = 0;
-        while (copied < len && audio_queue->size > 0) {
-            int to_copy = std::min(len - copied, audio_queue->size);
+        while (copied < len && audio_queue.size > 0) {
+            int to_copy = std::min(len - copied, audio_queue.size);
 
-            // Apply VOLUME control
-            SDL_MixAudioFormat(stream + copied, audio_queue->data, AUDIO_S16SYS, to_copy, VOLUME);
+            // Apply volume control
+            SDL_MixAudioFormat(stream + copied, audio_queue.data, AUDIO_S16SYS, to_copy, VOLUME);
 
-            audio_queue->size -= to_copy;
-            memmove(audio_queue->data, audio_queue->data + to_copy, audio_queue->size);
+            audio_queue.size -= to_copy;
+            memmove(audio_queue.data, audio_queue.data + to_copy, audio_queue.size);
             copied += to_copy;
         }
-        SDL_UnlockMutex(audio_queue->mutex);
+
+        SDL_UnlockMutex(audio_queue.mutex);
     }
 
     int termWidth, termHeight;
