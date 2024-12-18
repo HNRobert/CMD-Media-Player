@@ -428,8 +428,39 @@ class AudioPlayer {
             avcodec_free_context(&audio_codec_ctx);
             audio_codec_ctx = nullptr;
         }
-        SDL_DestroyMutex(audio_queue.mutex);
+        if (audio_queue.mutex) {
+            SDL_DestroyMutex(audio_queue.mutex);
+            audio_queue.mutex = nullptr;
+        }
         delete[] audio_queue.data;
+        audio_queue.data = nullptr;
+        if (SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO) {
+            SDL_QuitSubSystem(SDL_INIT_AUDIO);
+        }
+        if (SDL_WasInit(SDL_INIT_VIDEO) & SDL_INIT_VIDEO) {
+            SDL_QuitSubSystem(SDL_INIT_VIDEO);
+        }
+        if (SDL_WasInit(SDL_INIT_TIMER) & SDL_INIT_TIMER) {
+            SDL_QuitSubSystem(SDL_INIT_TIMER);
+        }
+        if (SDL_WasInit(SDL_INIT_EVENTS) & SDL_INIT_EVENTS) {
+            SDL_QuitSubSystem(SDL_INIT_EVENTS);
+        }
+        if (SDL_WasInit(SDL_INIT_JOYSTICK) & SDL_INIT_JOYSTICK) {
+            SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
+        }
+        if (SDL_WasInit(SDL_INIT_HAPTIC) & SDL_INIT_HAPTIC) {
+            SDL_QuitSubSystem(SDL_INIT_HAPTIC);
+        }
+        if (SDL_WasInit(SDL_INIT_GAMECONTROLLER) & SDL_INIT_GAMECONTROLLER) {
+            SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER);
+        }
+        if (SDL_WasInit(SDL_INIT_SENSOR) & SDL_INIT_SENSOR) {
+            SDL_QuitSubSystem(SDL_INIT_SENSOR);
+        }
+        if (SDL_WasInit(SDL_INIT_NOPARACHUTE) & SDL_INIT_NOPARACHUTE) {
+            SDL_QuitSubSystem(SDL_INIT_NOPARACHUTE);
+        }
         SDL_Quit();
     }
 
@@ -469,11 +500,11 @@ class VideoPlayer {
 
     int frame_delay;
     AVCodecContext *video_codec_ctx;
+    NCursesHandler *ncurses_handler;
     std::function<std::string(const cv::Mat &, int, const char *)> generate_ascii_func;
 
     bool initialize(AVFormatContext *format_ctx, int &video_stream_index) {
         // Initialize the video decoder
-        AVStream *video_stream = nullptr;
         for (int i = 0; i < format_ctx->nb_streams; ++i) {
             AVStream *stream = format_ctx->streams[i];
             if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && video_stream_index < 0) {
@@ -511,6 +542,8 @@ class VideoPlayer {
     void handle_packet(AVPacket *packet) {
         if (avcodec_send_packet(video_codec_ctx, packet) >= 0) {
             AVFrame *frame = av_frame_alloc();
+            current_time = av_rescale_q(packet->pts, video_stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE;
+            total_duration = av_rescale_q(video_stream->duration, video_stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE;
             while (avcodec_receive_frame(video_codec_ctx, frame) >= 0) {
                 // Handle video frame
                 render_frame(frame, current_time, total_duration);
@@ -520,13 +553,15 @@ class VideoPlayer {
     }
 
     void render_frame(AVFrame *frame, int64_t &current_time, int64_t total_duration) {
-        // Convert AVFrame to grayscale image
+        auto start_time = std::chrono::high_resolution_clock::now();
+        // Convert to grayscale image
         cv::Mat grayFrame(frame->height, frame->width, CV_8UC1);
         for (int y = 0; y < frame->height; ++y) {
-            memcpy(grayFrame.ptr(y), frame->data[0] + y * frame->linesize[0], frame->width);
+            for (int x = 0; x < frame->width; ++x) {
+                grayFrame.at<uchar>(y, x) = frame->data[0][y * frame->linesize[0] + x];
+            }
         }
-
-        // Adjust terminal size and frame dimensions
+        // Get terminal size and resize frame
         get_terminal_size(termWidth, termHeight);
         termHeight -= 2;
         if (termWidth != prevTermWidth || termHeight != prevTermHeight) {
@@ -537,45 +572,52 @@ class VideoPlayer {
             term_size_changed = false;
         }
 
-        // ...existing code for resizing, ASCII conversion, and display...
-        // Resize the frame to fit the terminal dimensions
-        if (term_size_changed) {
-            double aspect_ratio = static_cast<double>(frame->width) / frame->height;
-            frameWidth = termWidth;
-            frameHeight = static_cast<int>(frameWidth / aspect_ratio);
-            if (frameHeight > termHeight) {
-                frameHeight = termHeight;
-                frameWidth = static_cast<int>(frameHeight * aspect_ratio);
-            }
+        frameWidth = termWidth;
+        frameHeight = (grayFrame.rows * frameWidth) / grayFrame.cols / 2;
+        w_space_count = 0;
+        h_line_count = (termHeight - frameHeight) / 2;
+        if (frameHeight > termHeight) {
+            frameHeight = termHeight;
+            frameWidth = (grayFrame.cols * frameHeight * 2) / grayFrame.rows;
             w_space_count = (termWidth - frameWidth) / 2;
-            h_line_count = (termHeight - frameHeight) / 2;
+            h_line_count = 0;
         }
+        cv::resize(grayFrame, grayFrame, cv::Size(frameWidth, frameHeight));
 
-        // Resize the frame to fit the terminal dimensions
-        cv::Mat resizedFrame;
-        cv::resize(grayFrame, resizedFrame, cv::Size(frameWidth, frameHeight));
+        // Convert image to ASCII and display
+        const char *frame_chars = ascii_char_sets[current_char_set_index].c_str();
+        std::string asciiArt = generate_ascii_func(grayFrame,
+                                                   w_space_count,
+                                                   frame_chars);
 
-        // Convert the resized frame to ASCII
-        std::string asciiImage = generate_ascii_image(resizedFrame, w_space_count, ascii_char_sets[current_char_set_index].c_str(), generate_ascii_func);
-
-        // Move cursor to top-left and clear the screen if needed
-        move_cursor_to_top_left(term_size_changed);
-
-        // Print the ASCII image
-        printw("%s", asciiImage.c_str());
-
-        // Print the progress bar and time
+        // Create progress bar
+        std::string time_played = format_time(current_time);
+        std::string total_time = format_time(total_duration);
+        int progress_width = termWidth - (int)time_played.length() - (int)total_time.length() - 2; // 2 for /
         double progress = static_cast<double>(current_time) / total_duration;
-        std::string progressBar = create_progress_bar(progress, termWidth);
-        std::string timeInfo = format_time(current_time) + " / " + format_time(total_duration);
-        mvprintw(termHeight, 0, "%s", progressBar.c_str());
-        mvprintw(termHeight + 1, 0, "%s", timeInfo.c_str());
+        std::string progress_bar = create_progress_bar(progress, progress_width);
 
-        // Refresh the screen
+        // Combine ASCII art with progress bar
+        std::string combined_output;
+        add_empty_lines_for(combined_output, h_line_count);
+        combined_output += asciiArt;
+        add_empty_lines_for(combined_output,
+                            termHeight - frameHeight - h_line_count);
+        combined_output += time_played + "\\" + progress_bar + "/" + total_time + "\n";
+
+        // clear_screen();
+        move_cursor_to_top_left(term_size_changed);
+        printw("%s", combined_output.c_str()); // Show the Frame
         refresh();
 
-        // Control frame rate
-        std::this_thread::sleep_for(std::chrono::milliseconds(frame_delay));
+        // Frame rate control
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        int remaining_delay = frame_delay - static_cast<int>(processing_time.count()) - 8;
+        if (remaining_delay > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(remaining_delay));
+            std::this_thread::yield();
+        }
     }
 
     void cleanup() {
@@ -586,6 +628,7 @@ class VideoPlayer {
     }
 
   private:
+    AVStream *video_stream;
     int termWidth, termHeight;
     int prevTermWidth, prevTermHeight;
     bool term_size_changed;
@@ -597,7 +640,7 @@ class VideoPlayer {
 
 void play_video(const std::map<std::string, std::string> &params) {
     std::string media_path;
-    const char *frame_chars;
+
     std::function<std::string(const cv::Mat &, int, const char *)> generate_ascii_func = nullptr;
     bool has_visual = false;
     bool has_aural = false;
@@ -676,7 +719,6 @@ void play_video(const std::map<std::string, std::string> &params) {
 
     AVPacket *packet = av_packet_alloc();
     if (!packet) {
-        // 错误处理
         return;
     }
 
@@ -688,18 +730,16 @@ void play_video(const std::map<std::string, std::string> &params) {
     int termWidth, termHeight, frameWidth, frameHeight, prevTermWidth = 0, prevTermHeight = 0, w_space_count = 0, h_line_count = 0;
 
     NCursesHandler ncursesHandler;
+    videoPlayer.ncurses_handler = &ncursesHandler;
 
     // Handle Ctrl+C
     signal(SIGINT, handle_sigint);
     quit = false;
 
     bool term_size_changed = true;
-    int volume = SDL_MIX_MAXVOLUME;
     int seek_seconds = 3; // Number of seconds to seek
 
     while (!quit && av_read_frame(format_ctx, packet) >= 0) {
-        auto start_time = std::chrono::high_resolution_clock::now();
-
         switch (ncursesHandler.handleInput()) {
             case UserAction::Quit:
                 quit = true;
