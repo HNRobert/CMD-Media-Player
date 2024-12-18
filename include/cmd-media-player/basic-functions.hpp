@@ -16,6 +16,7 @@
 #include <map>
 #include <readline/history.h>
 #include <readline/readline.h>
+#include <sstream>
 #include <vector>
 
 struct cmdOptions {
@@ -40,6 +41,7 @@ void printMap(const std::map<K, V> &m) {
 
 extern const std::string VERSION; // Declare the version variable
 
+std::string format_time(int64_t seconds);
 void get_terminal_size(int &width, int &height);
 std::string get_system_type();
 void save_default_options_to_file(std::map<std::string, std::string> &default_options);

@@ -8,6 +8,17 @@
 #include "cmd-media-player/basic-functions.hpp"
 #include <iostream>
 
+std::string format_time(int64_t seconds) {
+    int64_t hours = seconds / 3600;
+    int64_t minutes = (seconds % 3600) / 60;
+    int64_t secs = seconds % 60;
+    std::stringstream ss;
+    ss << std::setfill('0') << std::setw(2) << hours << ":"
+       << std::setfill('0') << std::setw(2) << minutes << ":"
+       << std::setfill('0') << std::setw(2) << secs;
+    return ss.str();
+}
+
 #ifdef _WIN32
 #include <windows.h>
 

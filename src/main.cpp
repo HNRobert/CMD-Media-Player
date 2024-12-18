@@ -115,7 +115,7 @@ void get_command(std::string input = "$DEFAULT") {
     }
 
     if (std::filesystem::exists(cmdOpts.arguments[0])) {
-        std::map<std::string, std::string> opt = {{"-v", cmdOpts.arguments[0]}};
+        std::map<std::string, std::string> opt = {{"-m", cmdOpts.arguments[0]}};
         for (const auto &option : cmdOpts.options) {
             opt[option.first] = option.second;
         }
