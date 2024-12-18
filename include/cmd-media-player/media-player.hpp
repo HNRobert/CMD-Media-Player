@@ -1,5 +1,5 @@
 //
-//  video-player.hpp
+//  media-player.hpp
 //  CMD-Media-Player
 //
 //  Created by Robert He on 2024/9/2.
@@ -43,8 +43,7 @@ extern "C" {
 #include <unistd.h>
 #endif
 
-// #define KEY_DOWN(VK_NONAME) ((GetAsyncKeyState(VK_NONAME) & 0x8000) ? 1 : 0)
-void play_video(const std::map<std::string, std::string> &params);
+void play_media(const std::map<std::string, std::string> &params);
 
 // class AudioPlayer {
 //   public:
@@ -104,4 +103,4 @@ void play_video(const std::map<std::string, std::string> &params);
 //     // ...existing code...
 // };
 
-#endif /* video_player_hpp */
+#endif /* media_player_hpp */

@@ -6,7 +6,7 @@
 //
 
 #include "cmd-media-player/basic-functions.hpp"
-#include "cmd-media-player/video-player.hpp"
+#include "cmd-media-player/media-player.hpp"
 
 const std::string VERSION = "1.0.1";
 const std::string UPDATE_DATE = "Dec 12th 2024";
@@ -103,7 +103,7 @@ void get_command(std::string input = "$DEFAULT") {
     }
 
     if (cmdOpts.arguments[0] == "play") {
-        play_video(cmdOpts.options);
+        play_media(cmdOpts.options);
 
         show_interface();
         get_command(next_step);
@@ -119,7 +119,7 @@ void get_command(std::string input = "$DEFAULT") {
         for (const auto &option : cmdOpts.options) {
             opt[option.first] = option.second;
         }
-        play_video(opt);
+        play_media(opt);
     }
 
     get_command(next_step);
@@ -141,7 +141,6 @@ int main(int argc, const char *argv[]) {
         clear_screen();
         start_ui();
     } else {
-        // if (args.size() > 1)
         std::string combined_args;
         for (size_t i = 1; i < args.size(); ++i) {
             combined_args += args[i] + " ";

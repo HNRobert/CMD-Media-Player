@@ -1,11 +1,11 @@
 //
-//  video-player.cpp
+//  media-player.cpp
 //  CMD-Media-Player
 //
 //  Created by Robert He on 2024/9/2.
 //
 
-#include "cmd-media-player/video-player.hpp"
+#include "cmd-media-player/media-player.hpp"
 #include "cmd-media-player/basic-functions.hpp"
 
 #define AUDIO_QUEUE_SIZE (1024 * 1024) // 1MB buffer
@@ -265,35 +265,6 @@ class NCursesHandler {
     }
 };
 
-void seek_video(AVFormatContext *format_ctx, AVCodecContext *video_codec_ctx,
-                int video_stream_index, int64_t &current_time, int64_t total_duration,
-                int seek_seconds, bool debug_mode) {
-    // Calculate the target time
-    int64_t target_time = current_time + seek_seconds;
-
-    // Limit the target time to the range [0, total_duration]
-    target_time = std::clamp(target_time, int64_t(0), total_duration);
-
-    // Convert the target time to timestamp
-    int64_t target_ts = target_time * AV_TIME_BASE;
-
-    // Set the seek flags
-    int flags = 0;
-    if (seek_seconds < 0) {
-        flags |= AVSEEK_FLAG_BACKWARD;
-    }
-
-    // Seek to the target timestamp
-    if (av_seek_frame(format_ctx, -1, target_ts, flags) >= 0) {
-        avcodec_flush_buffers(video_codec_ctx);
-        current_time = target_time; // Update the current time
-    } else {
-        if (debug_mode) {
-            print_error("Error: Seek failed.");
-        }
-    }
-}
-
 class AudioPlayer {
   public:
     AudioPlayer() : audio_codec_ctx(nullptr), audio_device_id(0), swr_ctx(nullptr) {
@@ -389,7 +360,7 @@ class AudioPlayer {
         SDL_PauseAudioDevice(audio_device_id, 0);
     }
 
-    void handle_packet(AVPacket *packet) {
+    void handle_packet(AVPacket *packet, bool has_video) {
         if (avcodec_send_packet(audio_codec_ctx, packet) >= 0) {
             AVFrame *frame = av_frame_alloc();
             while (avcodec_receive_frame(audio_codec_ctx, frame) >= 0) {
@@ -413,6 +384,23 @@ class AudioPlayer {
             }
             av_frame_free(&frame);
         }
+    }
+
+    void render_audio(int64_t current_time, int64_t total_duration) {
+        get_terminal_size(termWidth, termHeight);
+
+        std::string time_played = format_time(current_time);
+        std::string total_time = format_time(total_duration);
+        int progress_width = termWidth - (int)time_played.length() - (int)total_time.length() - 2; // 2 for \/
+        double progress = static_cast<double>(current_time) / total_duration;
+        std::string progress_bar = create_progress_bar(progress, progress_width);
+
+        move_cursor_to_top_left();
+        printw(std::string(termHeight - 2, '\n').c_str());
+
+        printw((time_played + "\\" + progress_bar + "/" + total_time + "\n").c_str());
+        printw("Press SPACE to pause/resume, ESC to quit\n");
+        refresh();
     }
 
     void cleanup() {
@@ -471,6 +459,7 @@ class AudioPlayer {
         SDL_UnlockMutex(audio_queue->mutex);
     }
 
+    int termWidth, termHeight;
     AudioQueue audio_queue;
     SDL_AudioSpec spec;
     AVCodecContext *audio_codec_ctx;
@@ -485,6 +474,8 @@ class VideoPlayer {
     ~VideoPlayer() {
         cleanup();
     }
+    int64_t total_duration;
+    int64_t current_time;
     Uint32 frame_start;
     int frame_time;
     int frame_delay;
@@ -492,6 +483,11 @@ class VideoPlayer {
     NCursesHandler *ncurses_handler;
     std::function<std::string(const cv::Mat &, int, const char *)> generate_ascii_func;
 
+    // Add member variables
+    AVFormatContext *format_ctx;
+    int video_stream_index;
+
+    // Modify initialize() method to store format_ctx and video_stream_index
     bool initialize(AVFormatContext *format_ctx, int &video_stream_index) {
         // Initialize the video decoder
         for (int i = 0; i < format_ctx->nb_streams; ++i) {
@@ -524,6 +520,14 @@ class VideoPlayer {
             // Failed to open video codec
             return false;
         }
+
+        this->format_ctx = format_ctx;
+        this->video_stream_index = video_stream_index;
+
+        total_duration = format_ctx->duration / AV_TIME_BASE;
+        current_time = 0;
+        double fps = av_q2d(format_ctx->streams[video_stream_index]->avg_frame_rate);
+        frame_delay = static_cast<int>(1000.0 / fps);
 
         return true;
     }
@@ -581,7 +585,7 @@ class VideoPlayer {
         // Create progress bar
         std::string time_played = format_time(current_time);
         std::string total_time = format_time(total_duration);
-        int progress_width = termWidth - (int)time_played.length() - (int)total_time.length() - 2; // 2 for /
+        int progress_width = termWidth - (int)time_played.length() - (int)total_time.length() - 2; // 2 for \/
         double progress = static_cast<double>(current_time) / total_duration;
         std::string progress_bar = create_progress_bar(progress, progress_width);
 
@@ -596,16 +600,43 @@ class VideoPlayer {
         // clear_screen();
         move_cursor_to_top_left(term_size_changed);
         printw("%s", combined_output.c_str()); // Show the Frame
+        printw("Press SPACE to pause/resume, ESC/Ctrl+C to quit\n");
+        // printw("Frame time: %d ms, Frame delay: %d ms", frame_time, frame_delay);
         refresh();
 
         // Frame rate control
         frame_time = SDL_GetTicks() - frame_start;
-        printw("Frame time: %d ms, Frame delay: %d ms", frame_time, frame_delay);
-        refresh();
         if (frame_time < frame_delay + 4) {
             SDL_Delay(frame_delay - frame_time - 4);
         }
+    }
 
+    // Add seek method
+    void seek(int seek_seconds, bool debug_mode) {
+        // Calculate the target time
+        int64_t target_time = current_time + seek_seconds;
+
+        // Limit the target time to the range [0, total_duration]
+        target_time = std::clamp(target_time, int64_t(0), total_duration);
+
+        // Convert the target time to timestamp
+        int64_t target_ts = target_time * AV_TIME_BASE;
+
+        // Set the seek flags
+        int flags = 0;
+        if (seek_seconds < 0) {
+            flags |= AVSEEK_FLAG_BACKWARD;
+        }
+
+        // Seek to the target timestamp
+        if (av_seek_frame(format_ctx, -1, target_ts, flags) >= 0) {
+            avcodec_flush_buffers(video_codec_ctx);
+            current_time = target_time; // Update the current time
+        } else {
+            if (debug_mode) {
+                print_error("Error: Seek failed.");
+            }
+        }
     }
 
     void cleanup() {
@@ -616,17 +647,15 @@ class VideoPlayer {
     }
 
   private:
-    AVStream *video_stream;
+    AVStream *video_stream = nullptr;
     int termWidth, termHeight;
     int prevTermWidth, prevTermHeight;
     bool term_size_changed;
     int frameWidth, frameHeight;
     int w_space_count, h_line_count;
-    int64_t current_time;
-    int64_t total_duration;
 };
 
-void play_video(const std::map<std::string, std::string> &params) {
+void play_media(const std::map<std::string, std::string> &params) {
     std::string media_path;
 
     std::function<std::string(const cv::Mat &, int, const char *)> generate_ascii_func = nullptr;
@@ -710,11 +739,6 @@ void play_video(const std::map<std::string, std::string> &params) {
         return;
     }
 
-    int64_t total_duration = format_ctx->duration / AV_TIME_BASE;
-    int64_t current_time = 0;
-
-    double fps = av_q2d(format_ctx->streams[video_stream_index]->avg_frame_rate);
-    videoPlayer.frame_delay = static_cast<int>(1000.0 / fps);
     int termWidth, termHeight, frameWidth, frameHeight, prevTermWidth = 0, prevTermHeight = 0, w_space_count = 0, h_line_count = 0;
 
     NCursesHandler ncursesHandler;
@@ -735,10 +759,10 @@ void play_video(const std::map<std::string, std::string> &params) {
                 quit = true;
                 break;
             case UserAction::KeyLeft:
-                seek_video(format_ctx, videoPlayer.video_codec_ctx, video_stream_index, current_time, total_duration, -seek_seconds, debug_mode);
+                videoPlayer.seek(-seek_seconds, debug_mode);
                 break;
             case UserAction::KeyRight:
-                seek_video(format_ctx, videoPlayer.video_codec_ctx, video_stream_index, current_time, total_duration, seek_seconds, debug_mode);
+                videoPlayer.seek(seek_seconds, debug_mode);
                 break;
             case UserAction::KeyUp:
                 if (current_char_set_index < ascii_char_sets.size() - 1) {
@@ -757,7 +781,7 @@ void play_video(const std::map<std::string, std::string> &params) {
         if (packet->stream_index == video_stream_index) {
             videoPlayer.handle_packet(packet);
         } else if (packet->stream_index == audio_stream_index) {
-            audioPlayer.handle_packet(packet);
+            audioPlayer.handle_packet(packet, has_video);
         }
 
         av_packet_unref(packet);
