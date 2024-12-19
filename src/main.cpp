@@ -28,15 +28,17 @@ void get_command(std::string input = "$DEFAULT") {
         }
     }
 
-    cmdOptions cmdOpts = parseArguments(parseCommandLine(input),
+    CLIOptions cmdOpts = parseArguments(parseCommandLine(input),
                                         default_options,
                                         SELF_FILE_NAME);
 
     // printVector(parseCommandLine(input));
     // printVector(cmdOpts.arguments);
     // printMap(cmdOpts.options);
+
     if (cmdOpts.options.count("--version")) {
-        std::cout << "CMD-Media-Player version " << VERSION << "\nUpdated on: " << UPDATE_DATE << std::endl << std::endl;
+        std::cout << "CMD-Media-Player version " << VERSION << "\nUpdated on: " << UPDATE_DATE << std::endl
+                  << std::endl;
         get_command(next_step);
         return;
     }
@@ -45,7 +47,7 @@ void get_command(std::string input = "$DEFAULT") {
         get_command(next_step);
         return;
     }
-    
+
     if (cmdOpts.arguments.size() == 0 && cmdOpts.options.size() == 0) {
         get_command(next_step);
         return;
@@ -109,16 +111,17 @@ void get_command(std::string input = "$DEFAULT") {
         get_command(next_step);
         return;
     }
-    
+
     if (cmdOpts.arguments[0] == "exit") {
         return;
     }
 
     if (std::filesystem::exists(cmdOpts.arguments[0])) {
-        std::map<std::string, std::string> opt = {{"-m", cmdOpts.arguments[0]}};
+        std::map<std::string, std::string> opt = {};
         for (const auto &option : cmdOpts.options) {
             opt[option.first] = option.second;
         }
+        opt["-m"] = cmdOpts.arguments[0];
         play_media(opt);
     }
 

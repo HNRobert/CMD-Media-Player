@@ -215,7 +215,7 @@ void play_media(const std::map<std::string, std::string> &params) {
     } else if (params.count("-s")) {
         current_char_set_index = 2; // ASCII_SEQ_SHORT
     } else if (params.count("-l")) {
-        current_char_set_index = 3; // ASCII_SEQ_LONG
+        current_char_set_index = 5; // ASCII_SEQ_LONGEST
     } else {
         current_char_set_index = 2; // Default: ASCII_SEQ_SHORT
     }
@@ -242,6 +242,7 @@ void play_media(const std::map<std::string, std::string> &params) {
 
     AudioPlayer audioPlayer;
     VideoPlayer videoPlayer;
+    videoPlayer.generate_ascii_func = generate_ascii_func;
 
     int audio_stream_index = -1;
     int video_stream_index = -1;
@@ -260,6 +261,7 @@ void play_media(const std::map<std::string, std::string> &params) {
 
     NCursesHandler ncursesHandler;
     videoPlayer.ncurses_handler = &ncursesHandler;
+    clear();
 
     // Handle Ctrl+C
     signal(SIGINT, handle_sigint);

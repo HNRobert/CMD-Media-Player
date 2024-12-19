@@ -3,9 +3,8 @@ project(CMD-Media-Player)
 
 set(CMAKE_CXX_STANDARD 20)
 
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
-endif()
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message((STATUS "Flags Debug: ${CMAKE_CXX_FLAGS_DEBUG}"))
 
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
     set(HOMEBREW_PREFIX "/opt/homebrew")

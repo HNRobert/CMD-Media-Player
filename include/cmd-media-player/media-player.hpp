@@ -45,6 +45,7 @@ extern "C" {
 
 extern const int VOLUME;
 extern const int AUDIO_QUEUE_SIZE;
+
 enum class UserAction {
     None,
     Quit,
@@ -53,6 +54,7 @@ enum class UserAction {
     KeyUp,
     KeyDown
 };
+
 struct AudioQueue {
     uint8_t *data;
     int size;
@@ -178,6 +180,7 @@ class AudioPlayer {
     }
 
     bool initialize(AVFormatContext *format_ctx, int &audio_stream_index) {
+        this->format_ctx = format_ctx;
         // Initialize the audio decoder
         AVStream *audio_stream = nullptr;
         // Find the audio stream
@@ -200,6 +203,9 @@ class AudioPlayer {
             // Codec not found
             return false;
         }
+
+        total_duration = format_ctx->duration / AV_TIME_BASE;
+        current_time = 0;
 
         audio_codec_ctx = avcodec_alloc_context3(audio_codec);
         if (avcodec_parameters_to_context(audio_codec_ctx, audio_stream->codecpar) < 0) {
@@ -265,6 +271,12 @@ class AudioPlayer {
             AVFrame *frame = av_frame_alloc();
             while (avcodec_receive_frame(audio_codec_ctx, frame) >= 0) {
                 // Handle audio frame
+                int data_size = av_samples_get_buffer_size(nullptr, audio_codec_ctx->ch_layout.nb_channels, frame->nb_samples, audio_codec_ctx->sample_fmt, 1);
+                if (data_size < 0) {
+                    // Error calculating data size
+                    break;
+                }
+                current_time = av_rescale_q(frame->pts, audio_codec_ctx->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE;
                 int out_samples = (int)av_rescale_rnd(swr_get_delay(swr_ctx, audio_codec_ctx->sample_rate) + frame->nb_samples,
                                                       spec.freq, audio_codec_ctx->sample_rate, AV_ROUND_UP);
                 uint8_t *out_buffer;
@@ -282,7 +294,7 @@ class AudioPlayer {
                 }
 
                 if (!has_video) {
-                    render_audio(frame->pts);
+                    render_audio(this->format_ctx);
                 }
 
                 av_freep(&out_buffer);
@@ -291,19 +303,21 @@ class AudioPlayer {
         }
     }
 
-    void render_audio(int64_t current_time) {
+    void render_audio(AVFormatContext *format_ctx) {
         get_terminal_size(termWidth, termHeight);
 
         std::string time_played = format_time(current_time);
         std::string total_time = format_time(total_duration);
+        
         int progress_width = termWidth - (int)time_played.length() - (int)total_time.length() - 2; // 2 for \/
         double progress = static_cast<double>(current_time) / total_duration;
         std::string progress_bar = create_progress_bar(progress, progress_width);
 
         move_cursor_to_top_left();
-        std::string progress_output = std::string(termHeight - 2, '\n') + time_played + "\\" + progress_bar + "/" + total_time + "\n";
-        printw("%s", progress_output.c_str());
-        printw("Press SPACE to pause/resume, ESC to quit\n");
+        std::string progress_output = time_played + "\\" + progress_bar + "/" + total_time + "\n";
+        mvprintw(termHeight - 2, 0, "%s", progress_output.c_str());
+        printw("Press SPACE to pause/resume, ESC/Ctrl+C to quit");
+        mvprintw(termHeight - 1, termWidth - 1, "▶");
         refresh();
 
         // Frame rate control
@@ -314,6 +328,9 @@ class AudioPlayer {
     }
 
     void cleanup() {
+        if (cleaned_up) {
+            return;
+        }
         if (audio_device_id) {
             SDL_PauseAudioDevice(audio_device_id, 1); // Pause the audio device before closing
             SDL_CloseAudioDevice(audio_device_id);
@@ -348,6 +365,7 @@ class AudioPlayer {
         if (SDL_WasInit(SDL_INIT_EVERYTHING) & SDL_INIT_EVERYTHING) {
             SDL_Quit();
         }
+        cleaned_up = true;
     }
 
   private:
@@ -363,10 +381,12 @@ class AudioPlayer {
         while (copied < len && audio_queue.size > 0) {
             int to_copy = std::min(len - copied, audio_queue.size);
 
-            // Apply volume control
             SDL_MixAudioFormat(stream + copied, audio_queue.data, AUDIO_S16SYS, to_copy, VOLUME);
 
             audio_queue.size -= to_copy;
+            if (audio_queue.size < 0) {
+                audio_queue.size = 0;
+            }
             memmove(audio_queue.data, audio_queue.data + to_copy, audio_queue.size);
             copied += to_copy;
         }
@@ -374,10 +394,12 @@ class AudioPlayer {
         SDL_UnlockMutex(audio_queue.mutex);
     }
 
+    bool cleaned_up = false;
     int termWidth, termHeight;
     int frame_time;
     int frame_delay;
-    int64_t current_time, total_duration;
+    int64_t total_duration, current_time;
+    AVFormatContext *format_ctx;
     AudioQueue audio_queue;
     SDL_AudioSpec spec;
     AVCodecContext *audio_codec_ctx;
@@ -392,8 +414,8 @@ class VideoPlayer {
     ~VideoPlayer() {
         cleanup();
     }
-    int64_t total_duration;
-    int64_t current_time;
+    
+    int64_t total_duration, current_time;
     Uint32 frame_start;
 
     AVCodecContext *video_codec_ctx;
@@ -517,7 +539,8 @@ class VideoPlayer {
         // clear_screen();
         move_cursor_to_top_left(term_size_changed);
         printw("%s", combined_output.c_str()); // Show the Frame
-        printw("Press SPACE to pause/resume, ESC/Ctrl+C to quit\n");
+        printw("Press SPACE to pause/resume, ESC/Ctrl+C to quit");
+        mvprintw(termHeight + 1, termWidth - 1, "▶");
         // printw("Frame time: %d ms, Frame delay: %d ms", frame_time, frame_delay);
         refresh();
 
@@ -557,13 +580,18 @@ class VideoPlayer {
     }
 
     void cleanup() {
+        if (cleaned_up) {
+            return;
+        }
         if (video_codec_ctx) {
             avcodec_free_context(&video_codec_ctx);
             video_codec_ctx = nullptr;
         }
+        cleaned_up = true;
     }
 
   private:
+    bool cleaned_up = false;
     AVStream *video_stream = nullptr;
     int frame_time;
     int frame_delay;
