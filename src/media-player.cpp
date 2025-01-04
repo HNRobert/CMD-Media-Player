@@ -1,11 +1,11 @@
 //
-//  video-player.cpp
+//  media-player.cpp
 //  CMD-Media-Player
 //
 //  Created by Robert He on 2024/9/2.
 //
 
-#include "cmd-media-player/video-player.hpp"
+#include "cmd-media-player/media-player.hpp"
 #include "cmd-media-player/basic-functions.hpp"
 
 #define AUDIO_QUEUE_SIZE (1024 * 1024) // 1MB buffer
@@ -354,7 +354,7 @@ void play_video(const std::map<std::string, std::string> &params) {
     } else if (params.count("-s")) {
         current_char_set_index = 2; // ASCII_SEQ_SHORT
     } else if (params.count("-l")) {
-        current_char_set_index = 3; // ASCII_SEQ_LONG
+        current_char_set_index = 5; // ASCII_SEQ_LONGEST
     } else {
         current_char_set_index = 2; // Default: ASCII_SEQ_SHORT
     }

@@ -6,7 +6,7 @@
 //
 
 #include "cmd-media-player/basic-functions.hpp"
-#include "cmd-media-player/video-player.hpp"
+#include "cmd-media-player/media-player.hpp"
 
 const std::string VERSION = "1.0.1";
 const std::string UPDATE_DATE = "Dec 12th 2024";
@@ -28,7 +28,7 @@ void get_command(std::string input = "$DEFAULT") {
         }
     }
 
-    cmdOptions cmdOpts = parseArguments(parseCommandLine(input),
+    CLIOptions cmdOpts = parseArguments(parseCommandLine(input),
                                         default_options,
                                         SELF_FILE_NAME);
 
@@ -115,10 +115,11 @@ void get_command(std::string input = "$DEFAULT") {
     }
 
     if (std::filesystem::exists(cmdOpts.arguments[0])) {
-        std::map<std::string, std::string> opt = {{"-v", cmdOpts.arguments[0]}};
+        std::map<std::string, std::string> opt = {};
         for (const auto &option : cmdOpts.options) {
             opt[option.first] = option.second;
         }
+        opt["-m"] = cmdOpts.arguments[0];
         play_video(opt);
     }
 

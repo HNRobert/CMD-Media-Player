@@ -29,7 +29,7 @@ link_directories(
 
 add_executable(CMD-Media-Player
     src/basic-functions.cpp
-    src/video-player.cpp
+    src/media-player.cpp
     src/main.cpp
 )
 
@@ -58,6 +58,6 @@ install(TARGETS CMD-Media-Player DESTINATION bin)
 # Install header files
 install(FILES
     src/basic-functions.hpp
-    src/video-player.hpp
+    src/media-player.hpp
     DESTINATION include/CMD-Media-Player
 )

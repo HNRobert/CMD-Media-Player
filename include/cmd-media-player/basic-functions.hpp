@@ -18,7 +18,7 @@
 #include <readline/history.h>
 #include <readline/readline.h>
 
-struct cmdOptions {
+struct CLIOptions {
     std::vector<std::string> arguments;
     std::map<std::string, std::string> options;
 };
@@ -26,7 +26,7 @@ struct cmdOptions {
 template <typename T>
 void printVector(const std::vector<T> &vec) {
     for (const auto &element : vec) {
-        std::cout << element << " ";
+        std::cout << element << "/n";
     }
     std::cout << std::endl;
 }
@@ -50,7 +50,7 @@ void show_help(bool full_version = false);
 void clear_screen();
 std::vector<std::string> argv_to_vector(int argc, const char *argv[]);
 std::vector<std::string> parseCommandLine(const std::string &str);
-cmdOptions parseArguments(const std::vector<std::string> &args, std::map<std::string, std::string> defaultOptions, const char *self_name);
+CLIOptions parseArguments(const std::vector<std::string> &args, std::map<std::string, std::string> defaultOptions, const char *self_name);
 void print_error(std::string error_name, std::string error_detail = "");
 
 #endif /* basic_functions_hpp */

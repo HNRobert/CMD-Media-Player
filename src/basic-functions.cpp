@@ -204,7 +204,15 @@ void clear_screen() {
 }
 
 std::vector<std::string> argv_to_vector(int argc, const char *argv[]) {
-    return std::vector<std::string>(argv, argv + argc);
+    std::vector<std::string> args;
+    for (int i = 0; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg.find(' ') != std::string::npos) {
+            arg = "\"" + arg + "\"";
+        }
+        args.push_back(arg);
+    }
+    return args;
 }
 
 std::vector<std::string> parseCommandLine(const std::string &str) {
@@ -216,7 +224,7 @@ std::vector<std::string> parseCommandLine(const std::string &str) {
     for (std::size_t i = 0; i < str.length(); ++i) {
         char ch = str[i];
 
-        if (ch == '"' || ch == '\'') {
+        if (ch == '\"' || ch == '\'') {
             // Toggle inQuotes state if matching quote is found
             if (!inQuotes) {
                 inQuotes = true;
@@ -233,7 +241,7 @@ std::vector<std::string> parseCommandLine(const std::string &str) {
         } else if (ch == '\\' && i + 1 < str.length()) {
             // Handle escaped characters
             char nextChar = str[i + 1];
-            if (nextChar == '"' || nextChar == '\'' || nextChar == '\\') {
+            if (nextChar == '\"' || nextChar == '\'' || nextChar == '\\') {
                 currentArg += nextChar; // Add escaped character
                 ++i;                    // Skip the next character
             } else {
@@ -253,10 +261,10 @@ std::vector<std::string> parseCommandLine(const std::string &str) {
     return result;
 }
 
-cmdOptions parseArguments(const std::vector<std::string> &args,
+CLIOptions parseArguments(const std::vector<std::string> &args,
                           std::map<std::string, std::string> defaultOptions,
                           const char *self_name) {
-    cmdOptions cmdOptions;
+    CLIOptions cmdOptions;
     for (size_t i = 0; i < args.size(); ++i) {
         std::string arg = args[i];
         if (arg == self_name)
