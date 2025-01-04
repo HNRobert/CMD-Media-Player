@@ -7,3 +7,4 @@ build
 
 src/src.entitlements
 CMD-Media-Player.xcodeproj
+prev.cpp
