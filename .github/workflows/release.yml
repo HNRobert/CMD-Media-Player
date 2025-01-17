@@ -28,10 +28,10 @@ jobs:
           
           if [ -z "$LAST_TAG" ]; then
             COMMITS=$(git log --pretty=format:"- %s" --no-merges)
-            COMPARE_LINK="https://github.com/${{ github.repository }}/commits/${CURRENT_TAG}"
+            COMPARE_LINK="https://github.com/$GITHUB_REPOSITORY/commits/${CURRENT_TAG}"
           else
             COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s" --no-merges)
-            COMPARE_LINK="https://github.com/${ github.repository }}/compare/${LAST_TAG}...${CURRENT_TAG}"
+            COMPARE_LINK="https://github.com/$GITHUB_REPOSITORY/compare/${LAST_TAG}...${CURRENT_TAG}"
           fi
           
           echo "NOTES<<EOF" >> $GITHUB_OUTPUT
@@ -64,7 +64,7 @@ jobs:
       - name: Create macOS Package
         run: |
           cd build
-          zip -r CMD-Media-Player.zip CMD-Media-Player
+          zip -r CMD-Media-Player-v${{ needs.setup.outputs.version }}.zip CMD-Media-Player
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -72,6 +72,6 @@ jobs:
           tag_name: ${{ github.ref }}
           name: Release ${{ needs.setup.outputs.version }}
           body: ${{ needs.setup.outputs.release_notes }}
-          files: build/CMD-Media-Player.zip
+          files: build/CMD-Media-Player-v${{ needs.setup.outputs.version }}.zip
           draft: false
           prerelease: false
