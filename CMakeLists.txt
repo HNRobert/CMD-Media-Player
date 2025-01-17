@@ -57,7 +57,7 @@ install(TARGETS CMD-Media-Player DESTINATION bin)
 
 # Install header files
 install(FILES
-    src/basic-functions.hpp
-    src/media-player.hpp
+    include/cmd-media-player/basic-functions.hpp
+    include/cmd-media-player/media-player.hpp
     DESTINATION include/CMD-Media-Player
 )
