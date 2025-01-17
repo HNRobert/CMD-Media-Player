@@ -49,6 +49,8 @@ struct AudioQueue {
     uint8_t *data;
     int size;
     SDL_mutex *mutex;
+    int64_t current_pts;  // Add PTS tracking
+    double time_base;     // Add time base for accurate timing
 };
 
 struct VideoContext {

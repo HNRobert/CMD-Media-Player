@@ -10,7 +10,6 @@
 
 #define AUDIO_QUEUE_SIZE (1024 * 1024) // 1MB buffer
 
-
 const char *ASCII_SEQ_LONGEST = "@%#*+^=~-;:,'.` ";
 const char *ASCII_SEQ_LONGER = "@%#*+=~-:,. ";
 const char *ASCII_SEQ_LONG = "@%#*+=-:. ";
@@ -179,17 +178,23 @@ void audio_callback(void *userdata, Uint8 *stream, int len) {
     auto audio_queue = static_cast<AudioQueue *>(userdata);
     SDL_memset(stream, 0, len);
     SDL_LockMutex(audio_queue->mutex);
+    
     int copied = 0;
     while (copied < len && audio_queue->size > 0) {
         int to_copy = std::min(len - copied, audio_queue->size);
-
-        // Apply volume control
-        SDL_MixAudioFormat(stream + copied, audio_queue->data, AUDIO_S16SYS, to_copy, volume);
-
+        
+        // Apply volume control with timing check
+        SDL_MixAudioFormat(stream + copied, 
+                          audio_queue->data, 
+                          AUDIO_S16SYS, 
+                          to_copy, 
+                          volume);
+        
         audio_queue->size -= to_copy;
         memmove(audio_queue->data, audio_queue->data + to_copy, audio_queue->size);
         copied += to_copy;
     }
+    
     SDL_UnlockMutex(audio_queue->mutex);
 }
 
@@ -219,7 +224,7 @@ void handle_sigint(int sig) {
     quit = true;
 }
 
-void control_frame_rate(const std::chrono::high_resolution_clock::time_point& start_time, int frame_delay) {
+void control_frame_rate(const std::chrono::high_resolution_clock::time_point &start_time, int frame_delay) {
     auto end_time = std::chrono::high_resolution_clock::now();
     auto processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
     int remaining_delay = frame_delay - static_cast<int>(processing_time.count()) - 4;
@@ -228,7 +233,9 @@ void control_frame_rate(const std::chrono::high_resolution_clock::time_point& st
     }
 }
 
-void seek_for(int seek_seconds, bool debug_mode, int64_t &current_time, int64_t total_duration, AVFormatContext *format_ctx, AVCodecContext *audio_codec_ctx, AVCodecContext *video_codec_ctx) {
+void seek_for(int seek_seconds, bool debug_mode, int64_t &current_time, int64_t total_duration,
+              AVFormatContext *format_ctx, AVCodecContext *audio_codec_ctx, AVCodecContext *video_codec_ctx,
+              bool has_audio, bool has_video) {
     // Calculate the target time
     int64_t target_time = current_time + seek_seconds;
 
@@ -246,22 +253,30 @@ void seek_for(int seek_seconds, bool debug_mode, int64_t &current_time, int64_t 
 
     // Seek to the target timestamp
     if (av_seek_frame(format_ctx, -1, target_ts, flags) >= 0) {
-        avcodec_flush_buffers(audio_codec_ctx);
-        avcodec_flush_buffers(video_codec_ctx);
+        // Only flush audio buffers if audio stream exists
+        if (has_audio && audio_codec_ctx) {
+            avcodec_flush_buffers(audio_codec_ctx);
+        }
+
+        // Only flush video buffers if video stream exists
+        if (has_video && video_codec_ctx) {
+            avcodec_flush_buffers(video_codec_ctx);
+        }
+
         current_time = target_time;
     } else {
         if (debug_mode) {
-            std::cerr << "Error: Audio seek failed." << std::endl;
+            std::cerr << "Error: Seek operation failed." << std::endl;
         }
     }
 }
 
-bool initialize_video(AVFormatContext* format_ctx, VideoContext& video_ctx, bool debug_mode) {
+bool initialize_video(AVFormatContext *format_ctx, VideoContext &video_ctx, bool debug_mode) {
     video_ctx = {nullptr, nullptr, -1, 0.0};
-    
+
     // Find video stream
     for (int i = 0; i < format_ctx->nb_streams; ++i) {
-        AVStream* stream = format_ctx->streams[i];
+        AVStream *stream = format_ctx->streams[i];
         if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && video_ctx.stream_index < 0) {
             video_ctx.stream = stream;
             video_ctx.stream_index = i;
@@ -270,26 +285,30 @@ bool initialize_video(AVFormatContext* format_ctx, VideoContext& video_ctx, bool
     }
 
     if (!video_ctx.stream) {
-        if (debug_mode) print_error("Error: Could not find video stream.");
+        if (debug_mode)
+            print_error("Error: Could not find video stream.");
         return false;
     }
 
     // Initialize video codec
-    const AVCodec* video_codec = avcodec_find_decoder(video_ctx.stream->codecpar->codec_id);
+    const AVCodec *video_codec = avcodec_find_decoder(video_ctx.stream->codecpar->codec_id);
     if (!video_codec) {
-        if (debug_mode) print_error("Error: Could not find video codec.");
+        if (debug_mode)
+            print_error("Error: Could not find video codec.");
         return false;
     }
 
     video_ctx.codec_ctx = avcodec_alloc_context3(video_codec);
     if (avcodec_parameters_to_context(video_ctx.codec_ctx, video_ctx.stream->codecpar) < 0) {
-        if (debug_mode) print_error("Error: Could not copy video codec parameters.");
+        if (debug_mode)
+            print_error("Error: Could not copy video codec parameters.");
         return false;
     }
 
     if (avcodec_open2(video_ctx.codec_ctx, video_codec, nullptr) < 0) {
         avcodec_free_context(&video_ctx.codec_ctx);
-        if (debug_mode) print_error("Error: Could not open video codec.");
+        if (debug_mode)
+            print_error("Error: Could not open video codec.");
         return false;
     }
 
@@ -297,12 +316,12 @@ bool initialize_video(AVFormatContext* format_ctx, VideoContext& video_ctx, bool
     return true;
 }
 
-bool initialize_audio(AVFormatContext* format_ctx, AudioContext& audio_ctx, bool debug_mode) {
+bool initialize_audio(AVFormatContext *format_ctx, AudioContext &audio_ctx, bool debug_mode) {
     audio_ctx = {nullptr, nullptr, -1, nullptr, {}, {}};
-    
+
     // Find audio stream
     for (int i = 0; i < format_ctx->nb_streams; ++i) {
-        AVStream* stream = format_ctx->streams[i];
+        AVStream *stream = format_ctx->streams[i];
         if (stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO && audio_ctx.stream_index < 0) {
             audio_ctx.stream = stream;
             audio_ctx.stream_index = i;
@@ -311,37 +330,44 @@ bool initialize_audio(AVFormatContext* format_ctx, AudioContext& audio_ctx, bool
     }
 
     if (!audio_ctx.stream) {
-        if (debug_mode) print_error("Error: Could not find audio stream.");
+        if (debug_mode)
+            print_error("Error: Could not find audio stream.");
         return false;
     }
 
-    // Initialize audio queue
+    // Initialize audio queue with timing information
     audio_ctx.queue.data = new uint8_t[AUDIO_QUEUE_SIZE];
     audio_ctx.queue.size = 0;
     audio_ctx.queue.mutex = SDL_CreateMutex();
+    audio_ctx.queue.current_pts = 0;
+    audio_ctx.queue.time_base = av_q2d(audio_ctx.stream->time_base);
 
     // Initialize audio codec
-    const AVCodec* audio_codec = avcodec_find_decoder(audio_ctx.stream->codecpar->codec_id);
+    const AVCodec *audio_codec = avcodec_find_decoder(audio_ctx.stream->codecpar->codec_id);
     if (!audio_codec) {
-        if (debug_mode) print_error("Error: Could not find audio codec.");
+        if (debug_mode)
+            print_error("Error: Could not find audio codec.");
         return false;
     }
 
     audio_ctx.codec_ctx = avcodec_alloc_context3(audio_codec);
     if (avcodec_parameters_to_context(audio_ctx.codec_ctx, audio_ctx.stream->codecpar) < 0) {
-        if (debug_mode) print_error("Error: Could not copy audio codec parameters.");
+        if (debug_mode)
+            print_error("Error: Could not copy audio codec parameters.");
         return false;
     }
 
     if (avcodec_open2(audio_ctx.codec_ctx, audio_codec, nullptr) < 0) {
         avcodec_free_context(&audio_ctx.codec_ctx);
-        if (debug_mode) print_error("Error: Could not open audio codec.");
+        if (debug_mode)
+            print_error("Error: Could not open audio codec.");
         return false;
     }
 
     // Initialize SDL audio
     if (SDL_Init(SDL_INIT_AUDIO) < 0) {
-        if (debug_mode) print_error("SDL_Init Error: ", SDL_GetError());
+        if (debug_mode)
+            print_error("SDL_Init Error: ", SDL_GetError());
         return false;
     }
 
@@ -356,32 +382,36 @@ bool initialize_audio(AVFormatContext* format_ctx, AudioContext& audio_ctx, bool
 
     audio_device_id = SDL_OpenAudioDevice(nullptr, 0, &wanted_spec, &audio_ctx.spec, 0);
     if (audio_device_id == 0) {
-        if (debug_mode) print_error("SDL_OpenAudioDevice Error: ", SDL_GetError());
+        if (debug_mode)
+            print_error("SDL_OpenAudioDevice Error: ", SDL_GetError());
         return false;
     }
 
     // Initialize resampler
     audio_ctx.swr_ctx = swr_alloc();
     if (!audio_ctx.swr_ctx) {
-        if (debug_mode) print_error("Error: Could not allocate SwrContext.");
+        if (debug_mode)
+            print_error("Error: Could not allocate SwrContext.");
         return false;
     }
 
     AVChannelLayout out_ch_layout = AV_CHANNEL_LAYOUT_STEREO;
-    if (swr_alloc_set_opts2(&audio_ctx.swr_ctx, 
-                           &out_ch_layout,
-                           AV_SAMPLE_FMT_S16,
-                           audio_ctx.spec.freq,
-                           &audio_ctx.codec_ctx->ch_layout,
-                           audio_ctx.codec_ctx->sample_fmt,
-                           audio_ctx.codec_ctx->sample_rate,
-                           0, nullptr) < 0) {
-        if (debug_mode) print_error("Error: Could not set SwrContext options.");
+    if (swr_alloc_set_opts2(&audio_ctx.swr_ctx,
+                            &out_ch_layout,
+                            AV_SAMPLE_FMT_S16,
+                            audio_ctx.spec.freq,
+                            &audio_ctx.codec_ctx->ch_layout,
+                            audio_ctx.codec_ctx->sample_fmt,
+                            audio_ctx.codec_ctx->sample_rate,
+                            0, nullptr) < 0) {
+        if (debug_mode)
+            print_error("Error: Could not set SwrContext options.");
         return false;
     }
 
     if (swr_init(audio_ctx.swr_ctx) < 0) {
-        if (debug_mode) print_error("Error: Could not initialize SwrContext.");
+        if (debug_mode)
+            print_error("Error: Could not initialize SwrContext.");
         return false;
     }
 
@@ -471,12 +501,12 @@ void play_media(const std::map<std::string, std::string> &params) {
             print_error("Error: Could not allocate packet or frame.");
         return;
     }
-    
+
     int64_t total_duration = format_ctx->duration / AV_TIME_BASE;
     std::string total_time = format_time(total_duration);
     int64_t current_time = 0;
 
-    double fps = video_ctx.fps;
+    double fps = has_visual ? video_ctx.fps : 30.0; // Use 30fps refresh rate if no video stream
     int frame_delay = static_cast<int>(1000.0 / fps);
     int termWidth, termHeight, frameWidth, frameHeight, prevTermWidth = 0, prevTermHeight = 0, w_space_count = 0, h_line_count = 0;
 
@@ -497,10 +527,10 @@ void play_media(const std::map<std::string, std::string> &params) {
                 quit = true;
                 break;
             case UserAction::KeyLeft:
-                seek_for(-seek_seconds, debug_mode, current_time, total_duration, format_ctx, audio_ctx.codec_ctx, video_ctx.codec_ctx);
+                seek_for(-seek_seconds, debug_mode, current_time, total_duration, format_ctx, audio_ctx.codec_ctx, video_ctx.codec_ctx, has_aural, has_visual);
                 break;
             case UserAction::KeyRight:
-                seek_for(seek_seconds, debug_mode, current_time, total_duration, format_ctx, audio_ctx.codec_ctx, video_ctx.codec_ctx);
+                seek_for(seek_seconds, debug_mode, current_time, total_duration, format_ctx, audio_ctx.codec_ctx, video_ctx.codec_ctx, has_aural, has_visual);
                 break;
             case UserAction::KeyEqual:
                 if (current_char_set_index < ascii_char_sets.size() - 1) {
@@ -526,7 +556,7 @@ void play_media(const std::map<std::string, std::string> &params) {
                 break;
         }
 
-        if (packet->stream_index == video_ctx.stream_index && avcodec_send_packet(video_ctx.codec_ctx, packet) >= 0) {
+        if (has_visual && packet->stream_index == video_ctx.stream_index && avcodec_send_packet(video_ctx.codec_ctx, packet) >= 0) {
             while (avcodec_receive_frame(video_ctx.codec_ctx, frame) >= 0) {
                 // Convert to grayscale image
                 cv::Mat grayFrame(frame->height, frame->width, CV_8UC1);
@@ -589,27 +619,45 @@ void play_media(const std::map<std::string, std::string> &params) {
                 if (samples_out > 0) {
                     int buffer_size = av_samples_get_buffer_size(nullptr, audio_ctx.spec.channels, samples_out, AV_SAMPLE_FMT_S16, 1);
                     SDL_LockMutex(audio_ctx.queue.mutex);
-                    if (audio_ctx.queue.size + buffer_size < AUDIO_QUEUE_SIZE) {
-                        // Apply volume control
-                        memcpy(audio_ctx.queue.data + audio_ctx.queue.size, out_buffer, buffer_size);
-                        // SDL_MixAudioFormat(audio_queue.data + audio_queue.size, out_buffer, AUDIO_S16SYS, buffer_size, volume);
-                        audio_ctx.queue.size += buffer_size;
-                    } else {
-                        // std::cout << "Audio queue full. Discarding " << buffer_size << " bytes.";
+                    
+                    // Wait if buffer is too full
+                    while (audio_ctx.queue.size + buffer_size >= AUDIO_QUEUE_SIZE && !quit) {
+                        SDL_UnlockMutex(audio_ctx.queue.mutex);
+                        SDL_Delay(1);
+                        SDL_LockMutex(audio_ctx.queue.mutex);
                     }
+
+                    if (!quit && audio_ctx.queue.size + buffer_size < AUDIO_QUEUE_SIZE) {
+                        memcpy(audio_ctx.queue.data + audio_ctx.queue.size, 
+                               out_buffer, 
+                               buffer_size);
+                        
+                        // Update timing information
+                        audio_ctx.queue.current_pts = frame->pts;
+                        audio_ctx.queue.size += buffer_size;
+                    }
+                    
                     SDL_UnlockMutex(audio_ctx.queue.mutex);
                 } else {
                     // std::cout << "No samples output from swr_convert";
                 }
 
-                if (!has_visual) {
-                    current_time = av_rescale_q(packet->pts, audio_ctx.stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE;
-                    render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time);
-                    // Frame rate control
-                    control_frame_rate(start_time, frame_delay);
-                }
-
                 av_freep(&out_buffer);
+            }
+            if (!has_visual) {
+                current_time = av_rescale_q(packet->pts, audio_ctx.stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE;
+
+                // For audio-only files, clear screen and move cursor
+                move_cursor_to_top_left(term_size_changed);
+
+                // Get terminal size
+                get_terminal_size(termWidth, termHeight);
+
+                // Render playback progress
+                render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time);
+
+                // Frame rate control
+                // control_frame_rate(start_time, frame_delay);
             }
         }
 

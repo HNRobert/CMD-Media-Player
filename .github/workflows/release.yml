@@ -35,7 +35,7 @@ jobs:
           fi
           
           echo "NOTES<<EOF" >> $GITHUB_OUTPUT
-          echo "## Release ${CURRENT_TAG}" >> $GITHUB_OUTPUT
+          echo "## ${CURRENT_TAG}" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "Changes in this release:" >> $GITHUB_OUTPUT
           echo "$COMMITS" >> $GITHUB_OUTPUT
@@ -70,7 +70,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref }}
-          name: Release ${{ needs.setup.outputs.version }}
+          name: ${{ needs.setup.outputs.version }}
           body: ${{ needs.setup.outputs.release_notes }}
           files: build/CMD-Media-Player-v${{ needs.setup.outputs.version }}.zip
           draft: false
