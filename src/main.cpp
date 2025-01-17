@@ -8,8 +8,8 @@
 #include "cmd-media-player/basic-functions.hpp"
 #include "cmd-media-player/media-player.hpp"
 
-const std::string VERSION = "1.0.1";
-const std::string UPDATE_DATE = "Dec 12th 2024";
+const std::string VERSION = "1.1.0";
+const std::string UPDATE_DATE = "Jan 17th 2025";
 
 const char *SELF_FILE_NAME;
 std::map<std::string, std::string> default_options;
