@@ -113,17 +113,6 @@ std::string generate_ascii_image(const cv::Mat &image,
     return ascii_func(image, pre_space, asciiChars);
 }
 
-std::string format_time(int64_t seconds) {
-    int64_t hours = seconds / 3600;
-    int64_t minutes = (seconds % 3600) / 60;
-    int64_t secs = seconds % 60;
-    std::stringstream ss;
-    ss << std::setfill('0') << std::setw(2) << hours << ":"
-       << std::setfill('0') << std::setw(2) << minutes << ":"
-       << std::setfill('0') << std::setw(2) << secs;
-    return ss.str();
-}
-
 std::string create_progress_bar(double progress, int width) {
     int filled = static_cast<int>(progress * (width));
     std::string bar = std::string(filled, '+') + std::string(width - filled, '-');
