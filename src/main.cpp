@@ -36,7 +36,8 @@ void get_command(std::string input = "$DEFAULT") {
     // printVector(cmdOpts.arguments);
     // printMap(cmdOpts.options);
     if (cmdOpts.options.count("--version")) {
-        std::cout << "CMD-Media-Player version " << VERSION << "\nUpdated on: " << UPDATE_DATE << std::endl << std::endl;
+        std::cout << "CMD-Media-Player version " << VERSION << "\nUpdated on: " << UPDATE_DATE << std::endl
+                  << std::endl;
         get_command(next_step);
         return;
     }
@@ -45,7 +46,7 @@ void get_command(std::string input = "$DEFAULT") {
         get_command(next_step);
         return;
     }
-    
+
     if (cmdOpts.arguments.size() == 0 && cmdOpts.options.size() == 0) {
         get_command(next_step);
         return;
@@ -103,13 +104,13 @@ void get_command(std::string input = "$DEFAULT") {
     }
 
     if (cmdOpts.arguments[0] == "play") {
-        play_video(cmdOpts.options);
+        play_media(cmdOpts.options);
 
         show_interface();
         get_command(next_step);
         return;
     }
-    
+
     if (cmdOpts.arguments[0] == "exit") {
         return;
     }
@@ -120,7 +121,7 @@ void get_command(std::string input = "$DEFAULT") {
             opt[option.first] = option.second;
         }
         opt["-m"] = cmdOpts.arguments[0];
-        play_video(opt);
+        play_media(opt);
     }
 
     get_command(next_step);
