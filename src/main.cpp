@@ -5,8 +5,7 @@
 //  Created by Robert He on 2024/9/1.
 //
 
-#include "cmd-media-player/basic-functions.hpp"
-#include "cmd-media-player/media-player.hpp"
+#include "cmd-media-player/player-core.hpp"
 
 const std::string VERSION = "1.1.0";
 const std::string UPDATE_DATE = "Jan 17th 2025";

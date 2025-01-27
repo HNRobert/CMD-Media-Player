@@ -1,12 +1,12 @@
 //
-//  basic-functions.hpp
+//  player-basic.hpp
 //  CMD-Media-Player
 //
 //  Created by Robert He on 2024/9/1.
 //
 
-#ifndef basic_functions_hpp
-#define basic_functions_hpp
+#ifndef player_basic_hpp
+#define player_basic_hpp
 
 #include <cstdio>
 #include <cstring>
@@ -55,4 +55,4 @@ std::vector<std::string> parseCommandLine(const std::string &str);
 CLIOptions parseArguments(const std::vector<std::string> &args, std::map<std::string, std::string> defaultOptions, const char *self_name);
 void print_error(std::string error_name, std::string error_detail = "");
 
-#endif /* basic_functions_hpp */
+#endif /* player_basic_hpp */
