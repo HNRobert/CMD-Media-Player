@@ -59,5 +59,6 @@ install(TARGETS CMD-Media-Player DESTINATION bin)
 install(FILES
     include/cmd-media-player/basic-functions.hpp
     include/cmd-media-player/media-player.hpp
+    include/cmd-media-player/render-basic.hpp
     DESTINATION include/CMD-Media-Player
 )
