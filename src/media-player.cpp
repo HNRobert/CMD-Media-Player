@@ -9,8 +9,6 @@
 #include "cmd-media-player/basic-functions.hpp"
 #include "cmd-media-player/render-basic.hpp"
 
-#define AUDIO_QUEUE_SIZE (1024 * 1024) // 1MB buffer
-
 const char *ASCII_SEQ_LONGEST = "@%#*+^=~-;:,'.` ";
 const char *ASCII_SEQ_LONGER = "@%#*+=~-:,. ";
 const char *ASCII_SEQ_LONG = "@%#*+=-:. ";
@@ -51,7 +49,7 @@ const std::map<std::string, std::function<std::string(const cv::Mat &, int, cons
     {"st", image_to_ascii}};
 
 // Global variable to handle Ctrl+C
-volatile bool quit = false;
+bool quit = false;
 
 // Signal handler for Ctrl+C
 void handle_sigint(int sig) {
@@ -390,116 +388,27 @@ void play_media(const std::map<std::string, std::string> &params) {
                 break;
         }
 
-        if (has_visual && packet->stream_index == video_ctx.stream_index && avcodec_send_packet(video_ctx.codec_ctx, packet) >= 0) {
+        if (has_visual && packet->stream_index == video_ctx.stream_index && 
+            avcodec_send_packet(video_ctx.codec_ctx, packet) >= 0) {
             while (avcodec_receive_frame(video_ctx.codec_ctx, frame) >= 0) {
-                // Convert to grayscale image
-                cv::Mat grayFrame(frame->height, frame->width, CV_8UC1);
-                for (int y = 0; y < frame->height; ++y) {
-                    for (int x = 0; x < frame->width; ++x) {
-                        grayFrame.at<uchar>(y, x) = frame->data[0][y * frame->linesize[0] + x];
-                    }
-                }
-                // Get terminal size and resize frame
-                get_terminal_size(termWidth, termHeight);
-                if (termWidth != prevTermWidth || termHeight != prevTermHeight) {
-                    prevTermWidth = termWidth;
-                    prevTermHeight = termHeight;
-                    term_size_changed = true;
+                const char* frame_chars = ascii_char_sets[current_char_set_index].c_str();
+                
+                render_video_frame(frame, video_ctx.stream, packet,
+                                 termWidth, termHeight, prevTermWidth, prevTermHeight,
+                                 term_size_changed, current_time, total_duration, total_time,
+                                 frame_chars, generate_ascii_func);
 
-                } else
-                    term_size_changed = false;
-                frameWidth = termWidth;
-                frameHeight = (grayFrame.rows * frameWidth) / grayFrame.cols / 2;
-                w_space_count = 0;
-                h_line_count = (termHeight - frameHeight - 2) / 2;
-                if (frameHeight > termHeight - 2) {
-                    frameHeight = termHeight - 2;
-                    frameWidth = (grayFrame.cols * frameHeight * 2) / grayFrame.rows;
-                    w_space_count = (termWidth - frameWidth) / 2;
-                    h_line_count = 0;
-                }
-                cv::resize(grayFrame, grayFrame, cv::Size(frameWidth, frameHeight));
-
-                // Convert image to ASCII and display
-                const char *frame_chars = ascii_char_sets[current_char_set_index].c_str();
-                std::string asciiArt = generate_ascii_func(grayFrame,
-                                                           w_space_count,
-                                                           frame_chars);
-                current_time = av_rescale_q(packet->pts, video_ctx.stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE;
-
-                if (current_time < 0) {
-                    current_time = 0;
-                }
-
-                // Combine ASCII art with progress bar
-                std::string combined_output;
-                add_empty_lines_for(combined_output, h_line_count);
-                combined_output += asciiArt;
-                add_empty_lines_for(combined_output,
-                                    termHeight - frameHeight - h_line_count);
-
-                // clear_screen();
-                move_cursor_to_top_left(term_size_changed);
-                printw("%s", combined_output.c_str()); // Show the Frame
-                render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time);
-
-                // Frame rate control
                 control_frame_rate(start_time, frame_delay);
             }
-        } else if (packet->stream_index == audio_ctx.stream_index && audio_ctx.codec_ctx && audio_ctx.swr_ctx && avcodec_send_packet(audio_ctx.codec_ctx, packet) >= 0) {
+        } else if (packet->stream_index == audio_ctx.stream_index && audio_ctx.codec_ctx && 
+                   audio_ctx.swr_ctx && avcodec_send_packet(audio_ctx.codec_ctx, packet) >= 0) {
             while (avcodec_receive_frame(audio_ctx.codec_ctx, frame) >= 0) {
-                int out_samples = (int)av_rescale_rnd(swr_get_delay(audio_ctx.swr_ctx, audio_ctx.codec_ctx->sample_rate) + frame->nb_samples,
-                                                      audio_ctx.spec.freq, audio_ctx.codec_ctx->sample_rate, AV_ROUND_UP);
-                uint8_t *out_buffer;
-                av_samples_alloc(&out_buffer, nullptr, audio_ctx.spec.channels, out_samples, AV_SAMPLE_FMT_S16, 0);
-                int samples_out = swr_convert(audio_ctx.swr_ctx, &out_buffer, out_samples,
-                                              (const uint8_t **)frame->data, frame->nb_samples);
-                if (samples_out > 0) {
-                    int buffer_size = av_samples_get_buffer_size(nullptr, audio_ctx.spec.channels, samples_out, AV_SAMPLE_FMT_S16, 1);
-                    SDL_LockMutex(audio_ctx.queue.mutex);
-                    
-                    // Wait if buffer is too full
-                    while (audio_ctx.queue.size + buffer_size >= AUDIO_QUEUE_SIZE && !quit) {
-                        SDL_UnlockMutex(audio_ctx.queue.mutex);
-                        SDL_Delay(1);
-                        SDL_LockMutex(audio_ctx.queue.mutex);
-                    }
-
-                    if (!quit && audio_ctx.queue.size + buffer_size < AUDIO_QUEUE_SIZE) {
-                        memcpy(audio_ctx.queue.data + audio_ctx.queue.size, 
-                               out_buffer, 
-                               buffer_size);
-                        
-                        // Update timing information
-                        audio_ctx.queue.current_pts = frame->pts;
-                        audio_ctx.queue.size += buffer_size;
-                    }
-                    
-                    SDL_UnlockMutex(audio_ctx.queue.mutex);
-                } else {
-                    // std::cout << "No samples output from swr_convert";
-                }
-
-                av_freep(&out_buffer);
+                process_audio_frame(frame, audio_ctx, quit);
             }
             if (!has_visual) {
                 current_time = av_rescale_q(packet->pts, audio_ctx.stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE;
-
-                if (current_time < 0) {
-                    current_time = 0;
-                }
-
-                // For audio-only files, clear screen and move cursor
-                move_cursor_to_top_left(term_size_changed);
-
-                // Get terminal size
-                get_terminal_size(termWidth, termHeight);
-
-                // Render playback progress
-                render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time);
-
-                // Frame rate control
-                // control_frame_rate(start_time, frame_delay);
+                current_time = std::max(current_time, (int64_t)0);
+                render_audio_only_display(current_time, total_duration, total_time, term_size_changed);
             }
         }
 

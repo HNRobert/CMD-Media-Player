@@ -13,6 +13,7 @@ extern "C" {
 #include "basic-functions.hpp"
 #include "media-player.hpp"
 
+#define AUDIO_QUEUE_SIZE (1024 * 1024) // 1MB buffer
 // Forward declarations
 struct AudioQueue;
 extern const char *ASCII_SEQ_SHORT;
@@ -47,6 +48,19 @@ void list_audio_devices();
 int select_audio_device();
 void print_audio_stream_info(AVStream *audio_stream, AVCodecContext *audio_codec_ctx);
 void audio_callback(void *userdata, Uint8 *stream, int len);
+
+// New function declarations
+void render_video_frame(AVFrame* frame, const AVStream* stream, AVPacket* packet,
+                       int termWidth, int termHeight, 
+                       int& prevTermWidth, int& prevTermHeight, bool& term_size_changed,
+                       int64_t& current_time, int64_t total_duration, std::string total_time,
+                       const char* frame_chars,
+                       std::function<std::string(const cv::Mat&, int, const char*)> generate_ascii_func);
+
+void process_audio_frame(AVFrame* frame, AudioContext& audio_ctx, bool& quit);
+
+void render_audio_only_display(int64_t current_time, int64_t total_duration, 
+                             std::string total_time, bool term_size_changed);
 
 // Implementation details remain unchanged
 
@@ -215,6 +229,101 @@ void audio_callback(void *userdata, Uint8 *stream, int len) {
     }
 
     SDL_UnlockMutex(audio_queue->mutex);
+}
+
+void render_video_frame(AVFrame* frame, const AVStream* stream, AVPacket* packet,
+                       int termWidth, int termHeight,
+                       int& prevTermWidth, int& prevTermHeight, bool& term_size_changed,
+                       int64_t& current_time, int64_t total_duration, std::string total_time,
+                       const char* frame_chars,
+                       std::function<std::string(const cv::Mat&, int, const char*)> generate_ascii_func) {
+    // Convert frame to grayscale Mat
+    cv::Mat grayFrame(frame->height, frame->width, CV_8UC1);
+    for (int y = 0; y < frame->height; ++y) {
+        for (int x = 0; x < frame->width; ++x) {
+            grayFrame.at<uchar>(y, x) = frame->data[0][y * frame->linesize[0] + x];
+        }
+    }
+
+    // Update terminal size status
+    get_terminal_size(termWidth, termHeight);
+    if (termWidth != prevTermWidth || termHeight != prevTermHeight) {
+        prevTermWidth = termWidth;
+        prevTermHeight = termHeight;
+        term_size_changed = true;
+    } else {
+        term_size_changed = false;
+    }
+
+    // Update current time
+    current_time = av_rescale_q(packet->pts, stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE;
+    current_time = std::max(current_time, (int64_t)0);
+
+    // Process frame dimensions and render
+    int frameWidth = termWidth;
+    int frameHeight = (grayFrame.rows * frameWidth) / grayFrame.cols / 2;
+    int w_space_count = 0;
+    int h_line_count = (termHeight - frameHeight - 2) / 2;
+
+    if (frameHeight > termHeight - 2) {
+        frameHeight = termHeight - 2;
+        frameWidth = (grayFrame.cols * frameHeight * 2) / grayFrame.rows;
+        w_space_count = (termWidth - frameWidth) / 2;
+        h_line_count = 0;
+    }
+
+    cv::Mat resizedFrame;
+    cv::resize(grayFrame, resizedFrame, cv::Size(frameWidth, frameHeight));
+
+    std::string asciiArt = generate_ascii_func(resizedFrame, w_space_count, frame_chars);
+    std::string combined_output;
+    add_empty_lines_for(combined_output, h_line_count);
+    combined_output += asciiArt;
+    add_empty_lines_for(combined_output, termHeight - frameHeight - h_line_count);
+
+    move_cursor_to_top_left(term_size_changed);
+    printw("%s", combined_output.c_str());
+    render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time);
+}
+
+void process_audio_frame(AVFrame *frame, AudioContext &audio_ctx, bool &quit) {
+    int out_samples = (int)av_rescale_rnd(swr_get_delay(audio_ctx.swr_ctx, audio_ctx.codec_ctx->sample_rate) + frame->nb_samples,
+                                          audio_ctx.spec.freq, audio_ctx.codec_ctx->sample_rate, AV_ROUND_UP);
+    uint8_t *out_buffer;
+    av_samples_alloc(&out_buffer, nullptr, audio_ctx.spec.channels, out_samples, AV_SAMPLE_FMT_S16, 0);
+
+    int samples_out = swr_convert(audio_ctx.swr_ctx, &out_buffer, out_samples,
+                                  (const uint8_t **)frame->data, frame->nb_samples);
+
+    if (samples_out > 0) {
+        int buffer_size = av_samples_get_buffer_size(nullptr, audio_ctx.spec.channels,
+                                                     samples_out, AV_SAMPLE_FMT_S16, 1);
+
+        SDL_LockMutex(audio_ctx.queue.mutex);
+        while (audio_ctx.queue.size + buffer_size >= AUDIO_QUEUE_SIZE && !quit) {
+            SDL_UnlockMutex(audio_ctx.queue.mutex);
+            SDL_Delay(1);
+            SDL_LockMutex(audio_ctx.queue.mutex);
+        }
+
+        if (!quit && audio_ctx.queue.size + buffer_size < AUDIO_QUEUE_SIZE) {
+            memcpy(audio_ctx.queue.data + audio_ctx.queue.size, out_buffer, buffer_size);
+            audio_ctx.queue.current_pts = frame->pts;
+            audio_ctx.queue.size += buffer_size;
+        }
+
+        SDL_UnlockMutex(audio_ctx.queue.mutex);
+    }
+
+    av_freep(&out_buffer);
+}
+
+void render_audio_only_display(int64_t current_time, int64_t total_duration,
+                               std::string total_time, bool term_size_changed) {
+    int termWidth, termHeight;
+    get_terminal_size(termWidth, termHeight);
+    move_cursor_to_top_left(term_size_changed);
+    render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time);
 }
 
 #endif /* render_basic_hpp */
