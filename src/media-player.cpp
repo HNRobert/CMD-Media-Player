@@ -388,30 +388,28 @@ void play_media(const std::map<std::string, std::string> &params) {
                 break;
         }
 
-        if (has_visual && packet->stream_index == video_ctx.stream_index && 
+        if (has_visual && packet->stream_index == video_ctx.stream_index &&
             avcodec_send_packet(video_ctx.codec_ctx, packet) >= 0) {
             while (avcodec_receive_frame(video_ctx.codec_ctx, frame) >= 0) {
-                const char* frame_chars = ascii_char_sets[current_char_set_index].c_str();
-                
+                const char *frame_chars = ascii_char_sets[current_char_set_index].c_str();
+
                 render_video_frame(frame, video_ctx.stream, packet,
-                                 termWidth, termHeight, prevTermWidth, prevTermHeight,
-                                 term_size_changed, current_time, total_duration, total_time,
-                                 frame_chars, generate_ascii_func);
+                                   termWidth, termHeight, prevTermWidth, prevTermHeight,
+                                   term_size_changed, current_time, total_duration, total_time,
+                                   frame_chars, generate_ascii_func);
 
                 control_frame_rate(start_time, frame_delay);
             }
-        } else if (packet->stream_index == audio_ctx.stream_index && audio_ctx.codec_ctx && 
+        } else if (packet->stream_index == audio_ctx.stream_index && audio_ctx.codec_ctx &&
                    audio_ctx.swr_ctx && avcodec_send_packet(audio_ctx.codec_ctx, packet) >= 0) {
             while (avcodec_receive_frame(audio_ctx.codec_ctx, frame) >= 0) {
                 process_audio_frame(frame, audio_ctx, quit);
             }
             if (!has_visual) {
-                current_time = av_rescale_q(packet->pts, audio_ctx.stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE;
-                current_time = std::max(current_time, (int64_t)0);
+                current_time = std::max(av_rescale_q(packet->pts, audio_ctx.stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE, (int64_t)0);
                 render_audio_only_display(current_time, total_duration, total_time, term_size_changed);
             }
         }
-
         av_packet_unref(packet);
     }
 

@@ -1,21 +1,11 @@
 #ifndef render_basic_hpp
 #define render_basic_hpp
 
-#include <SDL2/SDL.h>
-#include <ncurses.h>
-#include <opencv2/opencv.hpp>
-
-extern "C" {
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-}
-
 #include "basic-functions.hpp"
 #include "media-player.hpp"
 
 #define AUDIO_QUEUE_SIZE (1024 * 1024) // 1MB buffer
 // Forward declarations
-struct AudioQueue;
 extern const char *ASCII_SEQ_SHORT;
 extern int volume;
 
