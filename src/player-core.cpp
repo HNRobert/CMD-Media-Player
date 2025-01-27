@@ -1,12 +1,11 @@
 //
-//  media-player.cpp
+//  player-core.cpp
 //  CMD-Media-Player
 //
 //  Created by Robert He on 2024/9/2.
 //
 
-#include "cmd-media-player/media-player.hpp"
-#include "cmd-media-player/basic-functions.hpp"
+#include "cmd-media-player/player-basic.hpp"
 #include "cmd-media-player/render-basic.hpp"
 
 const char *ASCII_SEQ_LONGEST = "@%#*+^=~-;:,'.` ";

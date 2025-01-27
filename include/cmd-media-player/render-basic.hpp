@@ -1,10 +1,18 @@
+//
+//  render-basic.hpp
+//  CMD-Media-Player
+//
+//  Created by Robert He on 2025/1/27.
+//
+
 #ifndef render_basic_hpp
 #define render_basic_hpp
 
-#include "basic-functions.hpp"
-#include "media-player.hpp"
+#include "player-basic.hpp"
+#include "player-core.hpp"
 
 #define AUDIO_QUEUE_SIZE (1024 * 1024) // 1MB buffer
+
 // Forward declarations
 extern const char *ASCII_SEQ_SHORT;
 extern int volume;

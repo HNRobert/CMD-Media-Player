@@ -1,5 +1,5 @@
 //
-//  media-player.hpp
+//  player-core.hpp
 //  CMD-Media-Player
 //
 //  Created by Robert He on 2024/9/2.
@@ -43,14 +43,14 @@ extern "C" {
 #include <unistd.h>
 #endif
 
-#include "basic-functions.hpp"
+#include "player-basic.hpp"
 
 struct AudioQueue {
     uint8_t *data;
     int size;
     SDL_mutex *mutex;
-    int64_t current_pts;  // Add PTS tracking
-    double time_base;     // Add time base for accurate timing
+    int64_t current_pts; // Add PTS tracking
+    double time_base;    // Add time base for accurate timing
 };
 
 struct VideoContext {
