@@ -458,13 +458,20 @@ void play_media(const std::map<std::string, std::string> &params) {
     SDL_DestroyMutex(audio_ctx.queue.mutex);
     delete[] audio_ctx.queue.data;
 
-    ncursesHandler.cleanup();
 
     if (!quit) {
+        get_terminal_size(termWidth, termHeight);
+        mvprintw(termHeight-1, 0, "\n");
+        mvprintw(termHeight-1, 0, "Playback completed! Press any key to continue...");
+        nodelay(stdscr, FALSE);
+        getch();
+        nodelay(stdscr, TRUE);
+        ncursesHandler.cleanup();
         clear_screen();
-        std::cout << "Playback completed!\n";
     } else {
+        ncursesHandler.cleanup();
         clear_screen();
         std::cout << "Playback interrupted!\n";
     }
+    
 }
