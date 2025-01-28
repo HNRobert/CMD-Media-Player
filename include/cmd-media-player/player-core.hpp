@@ -45,6 +45,8 @@ extern "C" {
 
 #include "player-basic.hpp"
 
+extern SDL_AudioDeviceID audio_device_id;
+
 struct AudioQueue {
     uint8_t *data;
     int size;
@@ -76,16 +78,19 @@ enum class UserAction {
     KeyUp,
     KeyDown,
     KeyEqual,
-    KeyMinus
+    KeyMinus,
+    KeySpace
 };
 
 class NCursesHandler {
   private:
-    bool is_paused = false;
     bool has_quitted = false;
     int termWidth, termHeight;
 
   public:
+    bool is_paused = false;
+    void *userdata;
+
     NCursesHandler() {
         initscr();
         cbreak();
@@ -106,13 +111,32 @@ class NCursesHandler {
     }
 
     UserAction handle_space() {
-        nodelay(stdscr, FALSE);
-        UserAction res = handleInput();
-        nodelay(stdscr, TRUE);
-        return res;
+        get_terminal_size(termWidth, termHeight);
+        if (!is_paused) {
+            mvprintw(termHeight - 1, termWidth - 2, "||");
+            refresh();
+            is_paused = true;
+            nodelay(stdscr, FALSE);
+            SDL_PauseAudioDevice(audio_device_id, 1); // Pause audio playback
+        }
+        UserAction res = handleInput(true);
+        switch (res) {
+            case UserAction::Quit:
+                is_paused = false;
+                nodelay(stdscr, TRUE);
+                SDL_PauseAudioDevice(audio_device_id, 0); // Resume audio before quitting
+                return UserAction::Quit;
+            case UserAction::KeySpace:
+                is_paused = false;
+                nodelay(stdscr, TRUE);
+                SDL_PauseAudioDevice(audio_device_id, 0); // Resume audio playback
+                return UserAction::KeySpace;
+            default:
+                return handle_space();
+        }
     }
 
-    UserAction handleInput() {
+    UserAction handleInput(bool last_space = false) {
         switch (getch()) {
             case ERR:
                 return UserAction::None;
@@ -120,17 +144,7 @@ class NCursesHandler {
             case 3:  // Ctrl+C
                 return UserAction::Quit;
             case ' ':
-                get_terminal_size(termWidth, termHeight);
-                mvprintw(termHeight - 1, termWidth - 1, is_paused ? "▶" : "⏸");
-                if (is_paused) {
-                    is_paused = false;
-                    // printw("▶");
-                    return UserAction::None;
-                } else {
-                    is_paused = true;
-                    // printw("⏸");
-                    return handle_space();
-                }
+                return last_space ? UserAction::KeySpace : handle_space();
             case KEY_LEFT:
                 return UserAction::KeyLeft;
             case KEY_RIGHT:
@@ -148,7 +162,6 @@ class NCursesHandler {
         }
     }
 };
-// #define KEY_DOWN(VK_NONAME) ((GetAsyncKeyState(VK_NONAME) & 0x8000) ? 1 : 0)
 void play_media(const std::map<std::string, std::string> &params);
 
 #endif /* video_player_hpp */

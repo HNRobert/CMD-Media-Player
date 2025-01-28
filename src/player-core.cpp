@@ -353,6 +353,7 @@ void play_media(const std::map<std::string, std::string> &params) {
     while (!quit && av_read_frame(format_ctx, packet) >= 0) {
         bool new_frame_received = false;
         auto start_time = std::chrono::high_resolution_clock::now();
+        bool force_refresh = true;
 
         switch (ncursesHandler.handleInput()) {
             case UserAction::Quit:
@@ -385,6 +386,7 @@ void play_media(const std::map<std::string, std::string> &params) {
                 }
                 break;
             default:
+                force_refresh = false;
                 break;
         }
 
@@ -403,7 +405,7 @@ void play_media(const std::map<std::string, std::string> &params) {
                 render_video_frame(frame, video_ctx.stream, packet,
                                    termWidth, termHeight, prevTermWidth, prevTermHeight,
                                    term_size_changed, current_time, total_duration, total_time,
-                                   frame_chars, false, generate_ascii_func);
+                                   frame_chars, false, ncursesHandler.is_paused, generate_ascii_func);
 
                 control_frame_rate(start_time, frame_delay);
             }
@@ -412,7 +414,6 @@ void play_media(const std::map<std::string, std::string> &params) {
             while (avcodec_receive_frame(audio_ctx.codec_ctx, frame) >= 0) {
                 process_audio_frame(frame, audio_ctx, quit);
             }
-            bool force_refresh = false;
             if (!new_frame_received) {
                 no_video_count += 1;
                 force_refresh = true;
@@ -424,11 +425,11 @@ void play_media(const std::map<std::string, std::string> &params) {
                 render_video_frame(last_video_frame, video_ctx.stream, packet,
                                    termWidth, termHeight, prevTermWidth, prevTermHeight,
                                    term_size_changed, current_time, total_duration, total_time,
-                                   frame_chars, force_refresh, generate_ascii_func);
+                                   frame_chars, force_refresh, ncursesHandler.is_paused, generate_ascii_func);
             }
 
             current_time = std::max(av_rescale_q(packet->pts, audio_ctx.stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE, (int64_t)0);
-            render_audio_only_display(current_time, total_duration, total_time, term_size_changed);
+            render_audio_only_display(current_time, total_duration, total_time, term_size_changed, ncursesHandler.is_paused);
         }
         av_packet_unref(packet);
     }

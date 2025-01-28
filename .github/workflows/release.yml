@@ -49,9 +49,6 @@ jobs:
     runs-on: macos-latest
     outputs:
       dep_versions: ${{ steps.get_versions.outputs.VERSIONS }}
-    strategy:
-      matrix:
-        arch: [arm64, x86_64]
     steps:
       - uses: actions/checkout@v3
 
@@ -63,82 +60,25 @@ jobs:
       - name: Build
         run: |
           mkdir build && cd build
-          cmake ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-Os" -DCMAKE_C_FLAGS="-Os" ..
           make
 
       - name: Create macOS Package
         run: |
           cd build
-          zip -r CMD-Media-Player-v${{ needs.setup.outputs.version }}-macos-${{ matrix.arch }}.zip CMD-Media-Player
+          zip -r CMD-Media-Player-v${{ needs.setup.outputs.version }}-macos-arm64.zip CMD-Media-Player
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v3
         with:
-          name: macos-${{ matrix.arch }}-build
-          path: build/CMD-Media-Player-v${{ needs.setup.outputs.version }}-macos-${{ matrix.arch }}.zip
+          name: macos-arm64-build
+          path: build/CMD-Media-Player-v${{ needs.setup.outputs.version }}-macos-arm64.zip
 
       - name: Get Dependency Versions
         id: get_versions
-        if: matrix.arch == 'arm64'
         run: |
           echo "VERSIONS<<EOF" >> $GITHUB_OUTPUT
-          echo "### Dependencies (macOS)" >> $GITHUB_OUTPUT
-          echo "- opencv: $(brew list --versions opencv | cut -d' ' -f2)" >> $GITHUB_OUTPUT
-          echo "- ffmpeg: $(brew list --versions ffmpeg | cut -d' ' -f2)" >> $GITHUB_OUTPUT
-          echo "- sdl2: $(brew list --versions sdl2 | cut -d' ' -f2)" >> $GITHUB_OUTPUT
-          echo "- ncurses: $(brew list --versions ncurses | cut -d' ' -f2)" >> $GITHUB_OUTPUT
-          echo "- readline: $(brew list --versions readline | cut -d' ' -f2)" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-  build-linux:
-    needs: setup
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [x86_64, arm64]
-    outputs:
-      dep_versions: ${{ steps.get_versions.outputs.VERSIONS }}
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-        if: matrix.arch == 'arm64'
-
-      - name: Install Homebrew
-        run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          echo "/home/linuxbrew/.linuxbrew/bin" >> $GITHUB_PATH
-          echo "/home/linuxbrew/.linuxbrew/sbin" >> $GITHUB_PATH
-          
-      - name: Install dependencies
-        run: |
-          brew update
-          brew install cmake ffmpeg opencv sdl2 ncurses readline
-
-      - name: Build
-        run: |
-          mkdir build && cd build
-          cmake ..
-          make
-
-      - name: Create Linux Package
-        run: |
-          cd build
-          tar -czf CMD-Media-Player-v${{ needs.setup.outputs.version }}-linux-${{ matrix.arch }}.tar.gz CMD-Media-Player
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: linux-${{ matrix.arch }}-build
-          path: build/CMD-Media-Player-v${{ needs.setup.outputs.version }}-linux-${{ matrix.arch }}.tar.gz
-
-      - name: Get Dependency Versions
-        id: get_versions
-        if: matrix.arch == 'x86_64'
-        run: |
-          echo "VERSIONS<<EOF" >> $GITHUB_OUTPUT
-          echo "### Dependencies (Linux)" >> $GITHUB_OUTPUT
+          echo "### Homebrew Dependencies of this version (macOS)" >> $GITHUB_OUTPUT
           echo "- opencv: $(brew list --versions opencv | cut -d' ' -f2)" >> $GITHUB_OUTPUT
           echo "- ffmpeg: $(brew list --versions ffmpeg | cut -d' ' -f2)" >> $GITHUB_OUTPUT
           echo "- sdl2: $(brew list --versions sdl2 | cut -d' ' -f2)" >> $GITHUB_OUTPUT
@@ -147,7 +87,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
   create-release:
-    needs: [setup, build-macos, build-linux]
+    needs: [setup, build-macos]
     runs-on: ubuntu-latest
     steps:
       - name: Download All Artifacts
@@ -173,18 +113,7 @@ jobs:
             ${{ needs.setup.outputs.release_notes }}
             
             ${{ needs.build-macos.outputs.dep_versions }}
-            
-            ${{ needs.build-linux.outputs.dep_versions }}
-            
-            ## Downloads
-            - macOS ARM64: [CMD-Media-Player-v${{ needs.setup.outputs.version }}-macos-arm64.zip]
-            - macOS x86_64: [CMD-Media-Player-v${{ needs.setup.outputs.version }}-macos-x86_64.zip]
-            - Linux ARM64: [CMD-Media-Player-v${{ needs.setup.outputs.version }}-linux-arm64.tar.gz]
-            - Linux x86_64: [CMD-Media-Player-v${{ needs.setup.outputs.version }}-linux-x86_64.tar.gz]
           files: |
             artifacts/macos-arm64-build/*
-            artifacts/macos-x86_64-build/*
-            artifacts/linux-arm64-build/*
-            artifacts/linux-x86_64-build/*
           draft: false
           prerelease: ${{ steps.version_type.outputs.IS_PRERELEASE }}
