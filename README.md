@@ -2,15 +2,15 @@
 
 ## Installation
 
-### Homebrew(arm64)
+### Homebrew(macOS)
 
 ```sh
-brew tap hnrobert/cmd-media-player && brew install cmd-media-player
+brew tap hnrobert/cmdp && brew install cmdp
 ```
 
 ## Function Description
 
-![main-page](https://github.com/user-attachments/assets/398396d0-523d-4071-be3c-bf444629a939)
+![main-page](https://github.com/user-attachments/assets/a1988f68-5e57-49c5-920a-b7a8d57c9f11)
 
 ```txt
   ____ __  __ ____     __  __          _ _       
@@ -27,11 +27,11 @@ brew tap hnrobert/cmd-media-player && brew install cmd-media-player
                |___/ 
 
 Usage:
-  [command] [-v /path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] /
+  [command] [-m /path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] /
   [/path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] 
 
 Options:
-  -v /path/to/video    Specify the video file to play
+  -m /path/to/video    Specify the video file to play
   -st                  Use static contrast (default)
   -dy                  Use dynamic contrast 
                         Scaling the contrast dynamically 
@@ -41,7 +41,6 @@ Options:
   -c "sequence"        Set a custom character sequence for ASCII art 
                         (prior to -s and -l)
                         Example: "@%#*+=-:. "
-
   --version            Show the version of the program
   -h, --help           Show this help message
 
@@ -54,28 +53,36 @@ Additional commands:
   save               Save the default options to a configuration file
 
 Examples:
-  play -v video.mp4 -dy -l
+  play -m video.mp4 -dy -l
       Play 'video.mp4' using dynamic contrast and long character set 
       for ASCII art.
-  play -v 'a video.mp4' -c "@#&*+=-:. "
+  play -m 'a video.mp4' -c "@#&*+=-:. "
       Play 'a video.mp4' with a custom character sequence for ASCII art.
       (add quotation marks on both sides if the path contains space)
       (if quotation marks included in the seq, use backslash to escape)
-  set -v 'default.mp4'
+  set -m 'default.mp4'
       Set a default video path to 'default.mp4'
       for future playback commands.
   set -dy
       Set dynamic contrast as the default mode 
       for future playback commands.
-  reset -v
+  reset -m
       Reset the default video path to the initial state.
 
 ```
 
-## Effect
+## Demo
 
-![kk1](https://github.com/user-attachments/assets/e284168c-05bf-4312-ab50-fcc3b8e3759c)
+### Video
 
-> You can use command +/- to scale the characters, then scale the terminal window to change the resolution
+![kk1](https://github.com/user-attachments/assets/6c2b3a48-f8ac-4748-9b28-0794eebf66ea)
 
-![kk2](https://github.com/user-attachments/assets/9ecb18d5-c500-4da0-abb0-dc8082dda450)
+> You can use command +/- to scale the character's size, then scale the terminal window to change the resolution
+> While playing, you may press up/down arrow key to adjust volume, and use left/right arrow to ast rewind/forward
+> You can also press -/= key directly to switch between different character sets
+
+### Audio
+
+> The Album cover whould be shown. (e.g. Eagles - Hotel California)
+
+![kk2](https://github.com/user-attachments/assets/6d5519f2-7bf7-43b1-9c01-cb421c8c4ea4)
