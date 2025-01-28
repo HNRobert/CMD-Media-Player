@@ -8,7 +8,7 @@
 #include "cmd-media-player/player-core.hpp"
 
 const std::string VERSION = "1.1.0";
-const std::string UPDATE_DATE = "Jan 17th 2025";
+const std::string UPDATE_DATE = "Jan 29th 2025";
 
 const char *SELF_FILE_NAME;
 std::map<std::string, std::string> default_options;
