@@ -429,7 +429,7 @@ void play_media(const std::map<std::string, std::string> &params) {
             }
 
             current_time = std::max(av_rescale_q(packet->pts, audio_ctx.stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE, (int64_t)0);
-            render_audio_only_display(current_time, total_duration, total_time, term_size_changed, ncursesHandler.is_paused);
+            render_audio_only_display(current_time, total_duration, total_time, term_size_changed, ncursesHandler.is_paused, has_visual);
         }
         av_packet_unref(packet);
     }

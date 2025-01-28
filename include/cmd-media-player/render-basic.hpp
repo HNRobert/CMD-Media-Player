@@ -58,8 +58,8 @@ void render_video_frame(AVFrame *frame, const AVStream *stream, AVPacket *packet
 
 void process_audio_frame(AVFrame *frame, AudioContext &audio_ctx, bool &quit);
 
-void render_audio_only_display(int64_t current_time, int64_t total_duration,
-                               std::string total_time, bool term_size_changed, bool &is_paused);
+void render_audio_only_display(int64_t current_time, int64_t total_duration, std::string total_time, 
+                               bool term_size_changed, bool &is_paused, bool has_v);
 
 // Implementation details remain unchanged
 
@@ -163,7 +163,7 @@ void render_playback_overlay(int termHeight, int termWidth, int volume, int64_t 
     
     if (force_refresh) {
         // mvprintw(termHeight - 2, 0, "\n\n");
-        // clear();
+        clear();
     }
 
     mvprintw(termHeight - 2, 0, "%s", progress_output.c_str());
@@ -292,7 +292,7 @@ void render_video_frame(AVFrame *frame, const AVStream *stream, AVPacket *packet
 
     move_cursor_to_top_left(term_size_changed || force_refresh);
     printw("%s", combined_output.c_str());
-    render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time, is_paused, force_refresh);
+    render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time, is_paused, false);
 }
 
 void process_audio_frame(AVFrame *frame, AudioContext &audio_ctx, bool &quit) {
@@ -329,11 +329,11 @@ void process_audio_frame(AVFrame *frame, AudioContext &audio_ctx, bool &quit) {
 
 void render_audio_only_display(int64_t current_time, int64_t total_duration,
                                std::string total_time, bool term_size_changed,
-                               bool &is_paused) {
+                               bool &is_paused, bool has_v) {
     int termWidth, termHeight;
     get_terminal_size(termWidth, termHeight);
     // move_cursor_to_top_left(term_size_changed);
-    render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time, is_paused, term_size_changed);
+    render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time, is_paused, term_size_changed&&!has_v);
 }
 
 #endif /* render_basic_hpp */
