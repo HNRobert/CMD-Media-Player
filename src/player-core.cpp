@@ -29,6 +29,8 @@ int volume = SDL_MIX_MAXVOLUME;
 SDL_AudioSpec audio_spec;
 SDL_AudioDeviceID audio_device_id = 0;
 
+int NO_VIDEO_THRESHOLD = 20;
+
 void adjust_volume(int change) {
     SDL_LockAudioDevice(audio_device_id);
     volume = std::clamp(volume + change, 0, SDL_MIX_MAXVOLUME);
@@ -327,11 +329,8 @@ void play_media(const std::map<std::string, std::string> &params) {
 
     AVPacket *packet = av_packet_alloc();
     AVFrame *frame = av_frame_alloc();
-    if (!packet || !frame) {
-        if (debug_mode)
-            print_error("Error: Could not allocate packet or frame.");
-        return;
-    }
+    AVFrame *last_video_frame = av_frame_alloc();
+    bool has_last_frame = false;
 
     int64_t total_duration = format_ctx->duration / AV_TIME_BASE;
     std::string total_time = format_time(total_duration);
@@ -349,8 +348,10 @@ void play_media(const std::map<std::string, std::string> &params) {
 
     bool term_size_changed = true;
     int seek_seconds = 3; // Number of seconds to seek
+    int no_video_count = 0;
 
     while (!quit && av_read_frame(format_ctx, packet) >= 0) {
+        bool new_frame_received = false;
         auto start_time = std::chrono::high_resolution_clock::now();
 
         switch (ncursesHandler.handleInput()) {
@@ -390,12 +391,19 @@ void play_media(const std::map<std::string, std::string> &params) {
         if (has_visual && packet->stream_index == video_ctx.stream_index &&
             avcodec_send_packet(video_ctx.codec_ctx, packet) >= 0) {
             while (avcodec_receive_frame(video_ctx.codec_ctx, frame) >= 0) {
+                new_frame_received = true;
+                no_video_count = 0;
+                if (!has_last_frame) {
+                    av_frame_unref(last_video_frame);
+                    av_frame_ref(last_video_frame, frame);
+                    has_last_frame = true;
+                }
                 const char *frame_chars = ascii_char_sets[current_char_set_index].c_str();
 
                 render_video_frame(frame, video_ctx.stream, packet,
                                    termWidth, termHeight, prevTermWidth, prevTermHeight,
                                    term_size_changed, current_time, total_duration, total_time,
-                                   frame_chars, generate_ascii_func);
+                                   frame_chars, false, generate_ascii_func);
 
                 control_frame_rate(start_time, frame_delay);
             }
@@ -404,10 +412,23 @@ void play_media(const std::map<std::string, std::string> &params) {
             while (avcodec_receive_frame(audio_ctx.codec_ctx, frame) >= 0) {
                 process_audio_frame(frame, audio_ctx, quit);
             }
-            if (!has_visual) {
-                current_time = std::max(av_rescale_q(packet->pts, audio_ctx.stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE, (int64_t)0);
-                render_audio_only_display(current_time, total_duration, total_time, term_size_changed);
+            bool force_refresh = false;
+            if (!new_frame_received) {
+                no_video_count += 1;
+                force_refresh = true;
             }
+
+            if (no_video_count > NO_VIDEO_THRESHOLD && has_last_frame && has_aural) {
+                no_video_count -= 5;
+                const char *frame_chars = ascii_char_sets[current_char_set_index].c_str();
+                render_video_frame(last_video_frame, video_ctx.stream, packet,
+                                   termWidth, termHeight, prevTermWidth, prevTermHeight,
+                                   term_size_changed, current_time, total_duration, total_time,
+                                   frame_chars, force_refresh, generate_ascii_func);
+            }
+
+            current_time = std::max(av_rescale_q(packet->pts, audio_ctx.stream->time_base, AV_TIME_BASE_Q) / AV_TIME_BASE, (int64_t)0);
+            render_audio_only_display(current_time, total_duration, total_time, term_size_changed);
         }
         av_packet_unref(packet);
     }
@@ -417,6 +438,7 @@ void play_media(const std::map<std::string, std::string> &params) {
 
     // Clean up
     av_frame_free(&frame);
+    av_frame_free(&last_video_frame);
     av_packet_free(&packet);
     if (audio_device_id) {
         SDL_CloseAudioDevice(audio_device_id);

@@ -11,7 +11,7 @@
 #include "player-basic.hpp"
 #include "player-core.hpp"
 
-#define AUDIO_QUEUE_SIZE (1024 * 1024) // 1MB buffer
+#define AUDIO_QUEUE_SIZE (1024 * 128) // buffer
 
 // Forward declarations
 extern const char *ASCII_SEQ_SHORT;
@@ -23,23 +23,23 @@ void add_empty_lines_for(std::string &combined_output, int count);
 
 // ASCII art generation
 std::string image_to_ascii_dy_contrast(const cv::Mat &image,
-                                    int pre_space = 0,
-                                    const char *asciiChars = ASCII_SEQ_SHORT);
+                                       int pre_space = 0,
+                                       const char *asciiChars = ASCII_SEQ_SHORT);
 
-std::string image_to_ascii(const cv::Mat &image, 
-                        int pre_space = 0,
-                        const char *asciiChars = ASCII_SEQ_SHORT);
+std::string image_to_ascii(const cv::Mat &image,
+                           int pre_space = 0,
+                           const char *asciiChars = ASCII_SEQ_SHORT);
 
 std::string generate_ascii_image(const cv::Mat &image,
-                              int pre_space,
-                              const char *asciiChars,
-                              std::string (*ascii_func)(const cv::Mat &, int, const char *));
+                                 int pre_space,
+                                 const char *asciiChars,
+                                 std::string (*ascii_func)(const cv::Mat &, int, const char *));
 
 // Playback UI elements
 std::string create_progress_bar(double progress, int width);
-void render_playback_overlay(int termHeight, int termWidth, int volume, 
-                          int64_t total_duration, std::string total_time, 
-                          int64_t current_time);
+void render_playback_overlay(int termHeight, int termWidth, int volume,
+                             int64_t total_duration, std::string total_time,
+                             int64_t current_time);
 
 // Audio device management
 void list_audio_devices();
@@ -48,17 +48,18 @@ void print_audio_stream_info(AVStream *audio_stream, AVCodecContext *audio_codec
 void audio_callback(void *userdata, Uint8 *stream, int len);
 
 // New function declarations
-void render_video_frame(AVFrame* frame, const AVStream* stream, AVPacket* packet,
-                       int termWidth, int termHeight, 
-                       int& prevTermWidth, int& prevTermHeight, bool& term_size_changed,
-                       int64_t& current_time, int64_t total_duration, std::string total_time,
-                       const char* frame_chars,
-                       std::function<std::string(const cv::Mat&, int, const char*)> generate_ascii_func);
+void render_video_frame(AVFrame *frame, const AVStream *stream, AVPacket *packet,
+                        int termWidth, int termHeight,
+                        int &prevTermWidth, int &prevTermHeight, bool &term_size_changed,
+                        int64_t &current_time, int64_t total_duration, std::string total_time,
+                        const char *frame_chars,
+                        bool force_refresh,
+                        std::function<std::string(const cv::Mat &, int, const char *)> generate_ascii_func);
 
-void process_audio_frame(AVFrame* frame, AudioContext& audio_ctx, bool& quit);
+void process_audio_frame(AVFrame *frame, AudioContext &audio_ctx, bool &quit);
 
-void render_audio_only_display(int64_t current_time, int64_t total_duration, 
-                             std::string total_time, bool term_size_changed);
+void render_audio_only_display(int64_t current_time, int64_t total_duration,
+                               std::string total_time, bool term_size_changed);
 
 // Implementation details remain unchanged
 
@@ -150,6 +151,10 @@ std::string create_progress_bar(double progress, int width) {
 }
 
 void render_playback_overlay(int termHeight, int termWidth, int volume, int64_t total_duration, std::string total_time, int64_t current_time) {
+    if (current_time < 0 || current_time > total_duration) {
+        refresh();
+        return;
+    }
     std::string time_played = format_time(current_time);
     int progress_width = termWidth - (int)time_played.length() - (int)total_time.length() - 2; // 2 for /
     double progress = static_cast<double>(current_time) / total_duration;
@@ -229,12 +234,13 @@ void audio_callback(void *userdata, Uint8 *stream, int len) {
     SDL_UnlockMutex(audio_queue->mutex);
 }
 
-void render_video_frame(AVFrame* frame, const AVStream* stream, AVPacket* packet,
-                       int termWidth, int termHeight,
-                       int& prevTermWidth, int& prevTermHeight, bool& term_size_changed,
-                       int64_t& current_time, int64_t total_duration, std::string total_time,
-                       const char* frame_chars,
-                       std::function<std::string(const cv::Mat&, int, const char*)> generate_ascii_func) {
+void render_video_frame(AVFrame *frame, const AVStream *stream, AVPacket *packet,
+                        int termWidth, int termHeight,
+                        int &prevTermWidth, int &prevTermHeight, bool &term_size_changed,
+                        int64_t &current_time, int64_t total_duration, std::string total_time,
+                        const char *frame_chars,
+                        bool force_refresh,
+                        std::function<std::string(const cv::Mat &, int, const char *)> generate_ascii_func) {
     // Convert frame to grayscale Mat
     cv::Mat grayFrame(frame->height, frame->width, CV_8UC1);
     for (int y = 0; y < frame->height; ++y) {
@@ -279,7 +285,7 @@ void render_video_frame(AVFrame* frame, const AVStream* stream, AVPacket* packet
     combined_output += asciiArt;
     add_empty_lines_for(combined_output, termHeight - frameHeight - h_line_count);
 
-    move_cursor_to_top_left(term_size_changed);
+    move_cursor_to_top_left(term_size_changed || force_refresh);
     printw("%s", combined_output.c_str());
     render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time);
 }
@@ -320,7 +326,7 @@ void render_audio_only_display(int64_t current_time, int64_t total_duration,
                                std::string total_time, bool term_size_changed) {
     int termWidth, termHeight;
     get_terminal_size(termWidth, termHeight);
-    move_cursor_to_top_left(term_size_changed);
+    // move_cursor_to_top_left(term_size_changed);
     render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time);
 }
 
