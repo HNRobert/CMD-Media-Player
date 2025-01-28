@@ -6,12 +6,20 @@ set(CMAKE_CXX_STANDARD 20)
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "Flags Debug: ${CMAKE_CXX_FLAGS_DEBUG}")
 message(STATUS "CMAKE_SYSTEM_PROCESSOR: ${CMAKE_SYSTEM_PROCESSOR}")
+message(STATUS "CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
 
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
-    set(HOMEBREW_PREFIX "/opt/homebrew")
-else()
-    set(HOMEBREW_PREFIX "/usr/local")
+# Determine Homebrew prefix based on platform and architecture
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+        set(HOMEBREW_PREFIX "/opt/homebrew")
+    else()
+        set(HOMEBREW_PREFIX "/usr/local")
+    endif()
+else() # Linux
+    set(HOMEBREW_PREFIX "/home/linuxbrew/.linuxbrew")
 endif()
+
+message(STATUS "Using Homebrew prefix: ${HOMEBREW_PREFIX}")
 
 include_directories(
     ${HOMEBREW_PREFIX}/opt/opencv/include/opencv4
