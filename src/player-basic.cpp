@@ -156,13 +156,21 @@ extern const std::string VERSION; // Declare the version variable
 void show_help(bool show_full) {
     std::cout << R"(
 Usage:
-  [command] [-m /path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] /
-  [/path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] 
+  [command] [-m /path/to/media] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] /
+  [/path/to/media] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] 
 
 )";
     if (show_full) {
-        std::cout << R"(Options:
-  -m /path/to/video    Specify the video file to play
+        std::cout << R"(Commands:
+  play                 Start playing media in this terminal window
+  set                  Set default options (e.g., media path, contrast mode)
+  reset                Reset the default options to the initial state
+  save                 Save the default options to a configuration file
+  help                 Show this help message
+  exit                 Exit the program
+
+Options:
+  -m /path/to/media    Specify the media file to play
   -st                  Use static contrast (default)
   -dy                  Use dynamic contrast 
                         Scaling the contrast dynamically 
@@ -175,13 +183,13 @@ Usage:
   --version            Show the version of the program
   -h, --help           Show this help message
 
-
-Additional commands:
-  help               Show this help message
-  exit               Exit the program
-  set                Set default options (e.g., video path, contrast mode)
-  reset              Reset the default options to the initial state
-  save               Save the default options to a configuration file
+While playing:
+  [Space]              Pause/Resume
+  [Left/Right Arrow]   Fast rewind/forward
+  [Up/Down Arrow]      Increase/Decrease volume
+  =                    Increase character set length
+  -                    Decrease character set length
+  Ctrl+C/Esc           Quit
 
 Examples:
   play -m video.mp4 -dy -l
@@ -192,13 +200,13 @@ Examples:
       (add quotation marks on both sides if the path contains space)
       (if quotation marks included in the seq, use backslash to escape)
   set -m 'default.mp4'
-      Set a default video path to 'default.mp4'
+      Set a default media path to 'default.mp4'
       for future playback commands.
   set -dy
       Set dynamic contrast as the default mode 
       for future playback commands.
   reset -m
-      Reset the default video path to the initial state.
+      Reset the default media path to the initial state.
 
 Version: )" << VERSION
                   << R"(

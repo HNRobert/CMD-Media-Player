@@ -1,5 +1,7 @@
 # An app which plays image, video and audio in your console through C++, OpenCV, SDL2 and FFmpeg
 
+![main-page](https://github.com/user-attachments/assets/a1988f68-5e57-49c5-920a-b7a8d57c9f11)
+
 ## Installation
 
 ### Homebrew(macOS)
@@ -8,9 +10,7 @@
 brew tap hnrobert/cmdp && brew install cmdp
 ```
 
-## Function Description
-
-![main-page](https://github.com/user-attachments/assets/a1988f68-5e57-49c5-920a-b7a8d57c9f11)
+## Description
 
 ```txt
   ____ __  __ ____     __  __          _ _       
@@ -27,11 +27,19 @@ brew tap hnrobert/cmdp && brew install cmdp
                |___/ 
 
 Usage:
-  [command] [-m /path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] /
-  [/path/to/video] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] 
+  [command] [-m /path/to/media] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] /
+  [/path/to/media] [-st|-dy] [-s|-l] [-c "@%#*+=-:. "] 
+
+Commands:
+  play                 Start playing media in this terminal window
+  set                  Set default options (e.g., media path, contrast mode)
+  reset                Reset the default options to the initial state
+  save                 Save the default options to a configuration file
+  help                 Show this help message
+  exit                 Exit the program
 
 Options:
-  -m /path/to/video    Specify the video file to play
+  -m /path/to/media    Specify the media file to play
   -st                  Use static contrast (default)
   -dy                  Use dynamic contrast 
                         Scaling the contrast dynamically 
@@ -44,13 +52,13 @@ Options:
   --version            Show the version of the program
   -h, --help           Show this help message
 
-
-Additional commands:
-  help               Show this help message
-  exit               Exit the program
-  set                Set default options (e.g., video path, contrast mode)
-  reset              Reset the default options to the initial state
-  save               Save the default options to a configuration file
+While playing:
+  [Space]              Pause/Resume
+  [Left/Right Arrow]   Fast rewind/forward
+  [Up/Down Arrow]      Increase/Decrease volume
+  =                    Increase character set length
+  -                    Decrease character set length
+  [Ctrl+C]/[Esc]       Quit
 
 Examples:
   play -m video.mp4 -dy -l
@@ -61,13 +69,13 @@ Examples:
       (add quotation marks on both sides if the path contains space)
       (if quotation marks included in the seq, use backslash to escape)
   set -m 'default.mp4'
-      Set a default video path to 'default.mp4'
+      Set a default media path to 'default.mp4'
       for future playback commands.
   set -dy
       Set dynamic contrast as the default mode 
       for future playback commands.
   reset -m
-      Reset the default video path to the initial state.
+      Reset the default media path to the initial state.
 
 ```
 
@@ -77,12 +85,12 @@ Examples:
 
 ![kk1](https://github.com/user-attachments/assets/6c2b3a48-f8ac-4748-9b28-0794eebf66ea)
 
-> You can use command +/- to scale the character's size, then scale the terminal window to change the resolution
-> While playing, you may press up/down arrow key to adjust volume, and use left/right arrow to ast rewind/forward
-> You can also press -/= key directly to switch between different character sets
+- You can use command +/- to scale the characters' size, then scale the terminal window to change the resolution
+- While playing, you may press up/down arrow key to adjust volume, and use left/right arrow to fast rewind/forward
+- You can also press -/= key directly to switch between different character sets
 
 ### Audio
 
-> The Album cover whould be shown. (e.g. Eagles - Hotel California)
+> The Album cover would be shown if exists. (e.g. the one below belongs to Eagles - Hotel California.mp3)
 
 ![kk2](https://github.com/user-attachments/assets/6d5519f2-7bf7-43b1-9c01-cb421c8c4ea4)
