@@ -55,7 +55,7 @@ target_link_libraries(CMD-Media-Player
     opencv_highgui
     opencv_imgproc
     opencv_videoio
-    sdl2
+    SDL2
     readline
     ncurses
 )
