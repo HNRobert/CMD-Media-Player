@@ -58,10 +58,9 @@ void render_video_frame(AVFrame *frame, const AVStream *stream, AVPacket *packet
 
 void process_audio_frame(AVFrame *frame, AudioContext &audio_ctx, bool &quit);
 
-void render_audio_only_display(int64_t current_time, int64_t total_duration, std::string total_time, 
+void render_audio_only_display(int64_t current_time, int64_t total_duration, std::string total_time,
                                bool term_size_changed, bool &is_paused, bool has_v);
 
-// Implementation details remain unchanged
 
 // ANSI escape sequence to move the cursor to the top-left corner and clear the screen
 void move_cursor_to_top_left(bool clear_all) {
@@ -157,10 +156,10 @@ void render_playback_overlay(int termHeight, int termWidth, int volume, int64_t 
     }
     std::string time_played = format_time(current_time);
     int progress_width = termWidth - (int)time_played.length() - (int)total_time.length() - 2; // 2 for /
-    double progress = static_cast<double>(current_time) / total_duration;
+    double progress = (total_duration != 0 && !std::isnan(current_time) && !std::isnan(total_duration)) ? std::clamp(static_cast<double>(current_time) / total_duration, 0.0, 1.0) : 1.0;
     std::string progress_bar = create_progress_bar(progress, progress_width);
     std::string progress_output = time_played + "\\" + progress_bar + "/" + total_time + "\n";
-    
+
     if (force_refresh) {
         // mvprintw(termHeight - 2, 0, "\n\n");
         clear();
@@ -333,7 +332,7 @@ void render_audio_only_display(int64_t current_time, int64_t total_duration,
     int termWidth, termHeight;
     get_terminal_size(termWidth, termHeight);
     // move_cursor_to_top_left(term_size_changed);
-    render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time, is_paused, term_size_changed&&!has_v);
+    render_playback_overlay(termHeight, termWidth, volume, total_duration, total_time, current_time, is_paused, term_size_changed && !has_v);
 }
 
 #endif /* render_basic_hpp */

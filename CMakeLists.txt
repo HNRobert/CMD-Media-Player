@@ -22,17 +22,19 @@ endif()
 message(STATUS "Using Homebrew prefix: ${HOMEBREW_PREFIX}")
 
 include_directories(
-    ${HOMEBREW_PREFIX}/opt/opencv/include/opencv4
     ${HOMEBREW_PREFIX}/opt/ffmpeg/include
-    ${HOMEBREW_PREFIX}/opt/sdl2/include
     ${HOMEBREW_PREFIX}/opt/ncurses/include
+    ${HOMEBREW_PREFIX}/opt/opencv/include/opencv4
+    ${HOMEBREW_PREFIX}/opt/readline/include
+    ${HOMEBREW_PREFIX}/opt/sdl2/include
 )
 
 link_directories(
-    ${HOMEBREW_PREFIX}/opt/opencv/lib
     ${HOMEBREW_PREFIX}/opt/ffmpeg/lib
-    ${HOMEBREW_PREFIX}/opt/sdl2/lib
     ${HOMEBREW_PREFIX}/opt/ncurses/lib
+    ${HOMEBREW_PREFIX}/opt/opencv/lib
+    ${HOMEBREW_PREFIX}/opt/readline/lib
+    ${HOMEBREW_PREFIX}/opt/sdl2/lib
 )
 
 add_executable(CMD-Media-Player
