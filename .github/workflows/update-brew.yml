@@ -1,0 +1,54 @@
+name: Update Homebrew Formula
+
+on:
+  workflow_run:
+    workflows: ["Release Build"]
+    types:
+      - completed
+
+jobs:
+  update-formula:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get release info
+        id: release
+        run: |
+          TAG=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
+          echo "VERSION=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Calculate SHA256
+        id: sha
+        run: |
+          URL="https://github.com/${{ github.repository }}/archive/refs/tags/${{ steps.release.outputs.TAG }}.tar.gz"
+          SHA=$(curl -sL $URL | shasum -a 256 | cut -d ' ' -f 1)
+          echo "SHA=$SHA" >> $GITHUB_OUTPUT
+
+      - name: Checkout homebrew-cmdp
+        uses: actions/checkout@v3
+        with:
+          repository: HNRobert/homebrew-cmdp
+          token: ${{ secrets.CI_TOKEN }}
+          path: homebrew-cmdp
+
+      - name: Update Formula
+        run: |
+          cd homebrew-cmdp
+          sed -i "s|url.*|url \"https://github.com/${{ github.repository }}/archive/refs/tags/${{ steps.release.outputs.TAG }}.tar.gz\"|" Formula/cmdp.rb
+          sed -i "s|sha256.*|sha256 \"${{ steps.sha.outputs.SHA }}\"|" Formula/cmdp.rb
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.CI_TOKEN }}
+          path: homebrew-cmdp
+          commit-message: "Update formula for ${{ steps.release.outputs.TAG }}"
+          title: "Update formula for ${{ steps.release.outputs.TAG }}"
+          body: |
+            Updates the formula for CMD-Media-Player version ${{ steps.release.outputs.VERSION }}
+
+            - Updates URL to ${{ steps.release.outputs.TAG }}
+            - Updates SHA256 to ${{ steps.sha.outputs.SHA }}
+          branch: update-formula
+          base: main
