@@ -4,17 +4,21 @@
 
 ## Installation
 
-### macOS (Homebrew, supports both arm64 and x86_64)
+### macOS (Homebrew required, supports both arm64 and x86_64)
 
 ```sh
 brew tap hnrobert/cmdp && brew install cmdp
 ```
+
+> I believe you've installed Homebrew, right...? If not, run `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`, or just visit [here](https://github.com/Homebrew/brew/releases) and download the .pkg installer.
 
 ### Linux (Homebrew, x86_64 only)
 
 ```sh
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/HNRobert/CMD-Media-Player/main/linux_install.sh)"
 ```
+
+> Or if you have already installed linuxbrew properly, you may just run `brew tap hnrobert/cmdp && brew install cmdp` ;)
 
 ## Description
 
